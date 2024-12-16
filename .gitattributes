@@ -1,0 +1,2 @@
+*.dll !text !filter !merge !diff
+*.lib !text !filter !merge !diff
