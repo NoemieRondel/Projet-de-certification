@@ -64,6 +64,9 @@ ALTER TABLE article_content ADD CONSTRAINT unique_article_id UNIQUE (article_id)
 
 ALTER TABLE articles MODIFY focus_tech varchar(1000);
 
+ALTER TABLE videos
+DROP focus_tech;
+
 
 
 
