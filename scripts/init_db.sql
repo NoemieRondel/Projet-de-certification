@@ -53,7 +53,6 @@ CREATE TABLE scientific_articles (
 SELECT * FROM scientific_articles;
 
 SET SQL_SAFE_UPDATES = 0;
-UPDATE articles;
 
 CREATE TABLE article_content (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -62,6 +61,8 @@ CREATE TABLE article_content (
     FOREIGN KEY (article_id) REFERENCES articles(id) ON DELETE CASCADE
 );
 ALTER TABLE article_content ADD CONSTRAINT unique_article_id UNIQUE (article_id);
+
+ALTER TABLE articles MODIFY focus_tech varchar(1000);
 
 
 
