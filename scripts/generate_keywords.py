@@ -21,50 +21,41 @@ connection = mysql.connector.connect(
 )
 cursor = connection.cursor()
 
-# Charger le modèle préentraîné pour la similarité sémantique
+# Charger le modèle pré-entraîné pour la similarité sémantique
 model = SentenceTransformer('all-MiniLM-L6-v2')
 
 # Liste des mots-clés prédéfinis
 keywords_list = [
-    "Artificial Intelligence", "Machine Learning", "Deep Learning", "Natural Language Processing",
-    "Computer Vision", "Reinforcement Learning", "Big Data", "Data Science", "Robotics",
-    "Ethics", "Governance", "Healthcare", "Finance", "Education", "Autonomous Systems",
-    "Cybersecurity", "IoT", "Edge Computing", "Cloud Computing", "AI Fairness",
-    "Explainability", "Neural Networks", "AI Regulation", "Digital Transformation",
-    "AI Applications", "AI Research", "Sustainability", "Predictive Analytics",
-    "AI Deployment", "Data Privacy", "Generative AI", "AI Strategy"
+    "Artificial Intelligence", "Machine Learning", "Deep Learning",
+    "Natural Language Processing", "Computer Vision",
+    "Reinforcement Learning", "Big Data", "Data Science", "Robotics",
+    "Ethics", "Governance", "Healthcare", "Finance", "Education", "Autonomous Systems", "Cybersecurity", "IoT", "Edge Computing", "Cloud Computing", "AI Fairness", "Explainability",
+    "Neural Networks", "AI Regulation", "Digital Transformation", "AI Applications", "AI Research","Sustainability", "Predictive Analytics", "AI Deployment", "Data Privacy", "Generative AI", "AI Strategy", "Artificial General Intelligence (AGI)", "Federated Learning", "Transfer Learning",
+    "Zero-shot Learning", "Few-shot Learning", "Fine-tuning", "Active Learning", "Self-supervised Learning", "Unsupervised Learning", "Graph Neural Networks (GNN)", "Contrastive Learning", "Large Language Models (LLM)", "Transformer Models", "Microsoft Azure AI", "OpenAI", "Mistral", "Anthropic Claude", "Google Bard", "Smartphone", "Telecommunications"
 ]
 
 # Embedding des mots-clés pour les comparaisons
 keyword_embeddings = model.encode(keywords_list, convert_to_tensor=True)
 
 # Seuil de pertinence
-THRESHOLD = 0.7
+THRESHOLD = 0.35  # Réduction du seuil pour capturer plus de mots-clés
 MAX_KEYWORDS = 10
 
 
-# Fonction pour extraire les mots-clés les plus pertinents en fonction du texte
+# Fonction pour extraire les mots-clés les plus pertinents
 def extract_keywords(text):
-    # Vérification de texte vide
-    if not text.strip():
-        return ""
+    if not text or not text.strip():
+        return ""  # Retourne vide si le texte est invalide
 
-    # Encodage du texte
+    # Encodage du texte et calcul de la similarité
     text_embedding = model.encode(text, convert_to_tensor=True)
-
-    # Calcul de la similarité entre le texte et les mots-clés
     cosine_scores = util.cos_sim(text_embedding, keyword_embeddings)[0]
 
-    # Association des scores aux mots-clés
-    scored_keywords = [
-        (keywords_list[i], cosine_scores[i].item())
-        for i in range(len(keywords_list))
+    # Filtrer par seuil et limiter le nombre de mots-clés
+    filtered_keywords = [
+        keywords_list[i] for i in range(len(keywords_list)) 
+        if cosine_scores[i].item() >= THRESHOLD
     ]
-
-    # Filtrer par seuil et trier par score décroissant
-    filtered_keywords = [kw for kw, score in scored_keywords if score >= THRESHOLD]
-
-    # Limiter à MAX_KEYWORDS
     return ";".join(filtered_keywords[:MAX_KEYWORDS])
 
 
@@ -79,27 +70,38 @@ tables = [
 for table in tables:
     print(f"Traitement de la table {table['name']}...")
     select_query = f"""
-    SELECT id, {table['text_field']}
+    SELECT id, {table['text_field']}, {table['keywords_field']}
     FROM {table['name']}
     """
     cursor.execute(select_query)
     rows = cursor.fetchall()
 
-    for row in rows:
-        record_id, text = row
+    print(f"{len(rows)} enregistrements trouvés dans la table {table['name']}.")
+
+    for record_id, text, current_keywords in rows:
         if text:  # Si le champ texte n'est pas vide
-            keywords = extract_keywords(text)
-            if keywords:  # Si des mots-clés pertinents sont trouvés
-                update_query = f"""
-                UPDATE {table['name']}
-                SET {table['keywords_field']} = %s
-                WHERE id = %s
-                """
-                cursor.execute(update_query, (keywords, record_id))
+            new_keywords = extract_keywords(text)
+            if new_keywords:  # Si des mots-clés pertinents sont trouvés
+                updated_keywords = new_keywords
+                if current_keywords:  # Si des mots-clés existent, les combiner
+                    current_keywords_set = set(current_keywords.split(";"))
+                    new_keywords_set = set(new_keywords.split(";"))
+                    combined_keywords = current_keywords_set.union(new_keywords_set)
+                    updated_keywords = ";".join(combined_keywords)
+
+                try:
+                    update_query = f"""
+                    UPDATE {table['name']}
+                    SET {table['keywords_field']} = %s
+                    WHERE id = %s
+                    """
+                    cursor.execute(update_query, (updated_keywords, record_id))
+                except mysql.connector.Error as e:
+                    print(f"Erreur SQL pour l'ID {record_id} : {e}")
 
 # Valider les changements et fermer la connexion
 connection.commit()
 cursor.close()
 connection.close()
 
-print("Extraction des mots-clés terminée, base de données mise à jour.")
+print("Extraction des mots-clés terminée et base de données mise à jour")
