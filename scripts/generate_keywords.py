@@ -29,16 +29,26 @@ keywords_list = [
     "Artificial Intelligence", "Machine Learning", "Deep Learning",
     "Natural Language Processing", "Computer Vision",
     "Reinforcement Learning", "Big Data", "Data Science", "Robotics",
-    "Ethics", "Governance", "Healthcare", "Finance", "Education", "Autonomous Systems", "Cybersecurity", "IoT", "Edge Computing", "Cloud Computing", "AI Fairness", "Explainability",
-    "Neural Networks", "AI Regulation", "Digital Transformation", "AI Applications", "AI Research","Sustainability", "Predictive Analytics", "AI Deployment", "Data Privacy", "Generative AI", "AI Strategy", "Artificial General Intelligence (AGI)", "Federated Learning", "Transfer Learning",
-    "Zero-shot Learning", "Few-shot Learning", "Fine-tuning", "Active Learning", "Self-supervised Learning", "Unsupervised Learning", "Graph Neural Networks (GNN)", "Contrastive Learning", "Large Language Models (LLM)", "Transformer Models", "Microsoft Azure AI", "OpenAI", "Mistral", "Anthropic Claude", "Google Bard", "Smartphone", "Telecommunications"
+    "Ethics", "Governance", "Healthcare", "Finance", "Education",
+    "Autonomous Systems", "Cybersecurity", "IoT", "Edge Computing",
+    "Cloud Computing", "AI Fairness", "Explainability",
+    "Neural Networks", "AI Regulation", "Digital Transformation",
+    "AI Applications", "AI Research", "Sustainability",
+    "Predictive Analytics", "AI Deployment", "Data Privacy", "Generative AI",
+    "AI Strategy", "Artificial General Intelligence (AGI)",
+    "Federated Learning", "Transfer Learning", "Zero-shot Learning",
+    "Few-shot Learning", "Fine-tuning", "Active Learning",
+    "Self-supervised Learning", "Unsupervised Learning",
+    "Graph Neural Networks (GNN)", "Contrastive Learning",
+    "Large Language Models (LLM)", "Transformer Models", "Microsoft Azure AI",
+    "OpenAI", "Mistral", "Anthropic Claude", "Google Bard", "Smartphone",
+    "Telecommunications"
 ]
 
 # Embedding des mots-clés pour les comparaisons
 keyword_embeddings = model.encode(keywords_list, convert_to_tensor=True)
 
-# Seuil de pertinence
-THRESHOLD = 0.35  # Réduction du seuil pour capturer plus de mots-clés
+# Limite des mots-clés à extraire
 MAX_KEYWORDS = 10
 
 
@@ -51,12 +61,10 @@ def extract_keywords(text):
     text_embedding = model.encode(text, convert_to_tensor=True)
     cosine_scores = util.cos_sim(text_embedding, keyword_embeddings)[0]
 
-    # Filtrer par seuil et limiter le nombre de mots-clés
-    filtered_keywords = [
-        keywords_list[i] for i in range(len(keywords_list)) 
-        if cosine_scores[i].item() >= THRESHOLD
-    ]
-    return ";".join(filtered_keywords[:MAX_KEYWORDS])
+    # Trier les scores et récupérer les mots-clés correspondants
+    sorted_indices = cosine_scores.argsort(descending=True)
+    top_keywords = [keywords_list[i] for i in sorted_indices[:MAX_KEYWORDS]]
+    return ";".join(top_keywords)
 
 
 # Tables et champs concernés
@@ -104,4 +112,4 @@ connection.commit()
 cursor.close()
 connection.close()
 
-print("Extraction des mots-clés terminée et base de données mise à jour")
+print("Extraction des mots-clés terminée et base de données mise à jour.")
