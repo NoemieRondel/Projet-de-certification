@@ -23,23 +23,23 @@ def fetch_theverge_content(url):
         # Envoyer une requête HTTP pour récupérer le contenu de la page
         response = requests.get(url)
         response.raise_for_status()  # Vérifier si la requête s'est bien passée
-        
+
         # Parser le HTML de la page
         soup = BeautifulSoup(response.text, 'html.parser')
-        
+
         # Localiser les sections contenant le contenu de l'article
         # Adapter le sélecteur CSS au cas de "duet--article--article-body-component"
         article_sections = soup.find_all("div", class_="duet--article--article-body-component")
-        
+
         # Initialiser une liste pour stocker le texte
         content = []
-        
+
         # Extraire le texte de chaque paragraphe (<p>) dans chaque section
         for section in article_sections:
             paragraphs = section.find_all("p", class_="duet--article--dangerously-set-cms-markup")
             for paragraph in paragraphs:
                 content.append(paragraph.get_text(strip=True))  # Nettoyage
-        
+
         # Joindre tout le contenu extrait avec des sauts de ligne
         full_content = "\n".join(content)
         return full_content if full_content else "Aucun contenu trouvé."
