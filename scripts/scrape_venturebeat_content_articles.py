@@ -48,7 +48,8 @@ def fetch_venturebeat_content(url):
 
 def store_article_content(article_id, content):
     """
-    Insère ou met à jour le contenu complet d'un article dans article_content.
+    Insère le contenu complet d'un article dans article_content
+    uniquement s'il n'existe pas déjà.
     """
     try:
         connection = connect_db()
@@ -60,20 +61,15 @@ def store_article_content(article_id, content):
         result = cursor.fetchone()
 
         if result:
-            # Mettre à jour si déjà présent
-            cursor.execute(
-                "UPDATE article_content SET content = %s WHERE article_id = %s",
-                (content, article_id)
-            )
+            print(f"L'article {article_id} est déjà présent dans la base.")
         else:
             # Insérer si pas encore présent
             cursor.execute(
                 "INSERT INTO article_content (article_id, content) VALUES (%s, %s)",
                 (article_id, content)
             )
-
-        connection.commit()
-        print(f"Contenu de l'article {article_id} enregistré avec succès.")
+            connection.commit()
+            print(f"Contenu de l'article {article_id} enregistré avec succès.")
     except Exception as e:
         print(f"Erreur lors de l'enregistrement du contenu de l'article {article_id} : {e}")
     finally:
