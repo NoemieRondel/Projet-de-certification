@@ -50,6 +50,7 @@ keyword_embeddings = model.encode(keywords_list, convert_to_tensor=True)
 
 # Limite des mots-clés à extraire
 MAX_KEYWORDS = 10
+SIMILARITY_THRESHOLD = 0.2
 
 
 # Fonction pour extraire les mots-clés les plus pertinents
@@ -61,51 +62,53 @@ def extract_keywords(text):
     text_embedding = model.encode(text, convert_to_tensor=True)
     cosine_scores = util.cos_sim(text_embedding, keyword_embeddings)[0]
 
-    # Trier les scores et récupérer les mots-clés correspondants
-    sorted_indices = cosine_scores.argsort(descending=True)
-    top_keywords = [keywords_list[i] for i in sorted_indices[:MAX_KEYWORDS]]
-    return ";".join(top_keywords)
+    # Filtrer les mots-clés avec un seuil de similarité
+    filtered_keywords = [
+        keywords_list[i] for i in range(len(cosine_scores)) if cosine_scores[i] > SIMILARITY_THRESHOLD
+    ]
+
+    if not filtered_keywords:
+        return ""  # Retourne vide si aucun mot-clé n'atteint le seuil
+
+    # Trier les mots-clés et retourner les plus pertinents
+    sorted_keywords = [keywords_list[i] for i in cosine_scores.argsort(descending=True)]
+    return ";".join(sorted_keywords[:MAX_KEYWORDS])
 
 
-# Tables et champs concernés
-tables = [
-    {"name": "articles", "text_field": "content", "keywords_field": "keywords"},
-    {"name": "videos", "text_field": "description", "keywords_field": "keywords"},
-    {"name": "scientific_articles", "text_field": "abstract", "keywords_field": "keywords"}
-]
+# Traitement des articles dans la table article_content
+select_query = """
+    SELECT ac.article_id, ac.content, a.keywords
+    FROM article_content ac
+    JOIN articles a ON ac.article_id = a.id
+    WHERE ac.content IS NOT NULL
+"""
+cursor.execute(select_query)
+rows = cursor.fetchall()
 
-# Traitement des tables
-for table in tables:
-    print(f"Traitement de la table {table['name']}...")
-    select_query = f"""
-    SELECT id, {table['text_field']}, {table['keywords_field']}
-    FROM {table['name']}
-    """
-    cursor.execute(select_query)
-    rows = cursor.fetchall()
+for article_id, content, current_keywords in rows:
+    print(f"Traitement de l'article ID {article_id}...")
 
-    print(f"{len(rows)} enregistrements trouvés dans la table {table['name']}.")
+    # Extraire les mots-clés à partir du contenu de l'article
+    new_keywords = extract_keywords(content)
 
-    for record_id, text, current_keywords in rows:
-        if text:  # Si le champ texte n'est pas vide
-            new_keywords = extract_keywords(text)
-            if new_keywords:  # Si des mots-clés pertinents sont trouvés
-                updated_keywords = new_keywords
-                if current_keywords:  # Si des mots-clés existent, les combiner
-                    current_keywords_set = set(current_keywords.split(";"))
-                    new_keywords_set = set(new_keywords.split(";"))
-                    combined_keywords = current_keywords_set.union(new_keywords_set)
-                    updated_keywords = ";".join(combined_keywords)
+    if new_keywords:  # Si des mots-clés sont trouvés
+        updated_keywords = new_keywords
 
-                try:
-                    update_query = f"""
-                    UPDATE {table['name']}
-                    SET {table['keywords_field']} = %s
-                    WHERE id = %s
-                    """
-                    cursor.execute(update_query, (updated_keywords, record_id))
-                except mysql.connector.Error as e:
-                    print(f"Erreur SQL pour l'ID {record_id} : {e}")
+        # Si des mots-clés existent déjà dans la table articles, les combiner
+        if current_keywords:
+            current_keywords_set = set(current_keywords.split(";"))
+            new_keywords_set = set(new_keywords.split(";"))
+            combined_keywords = current_keywords_set.union(new_keywords_set)
+            updated_keywords = ";".join(combined_keywords)
+
+        # Mise à jour des mots-clés dans la table articles
+        try:
+            update_query = "UPDATE articles SET keywords = %s WHERE id = %s"
+            cursor.execute(update_query, (updated_keywords, article_id))
+        except mysql.connector.Error as e:
+            print(f"Erreur SQL pour l'ID {article_id}: {e}")
+    else:
+        print(f"Aucun mot-clé extrait pour l'article ID {article_id}.")
 
 # Valider les changements et fermer la connexion
 connection.commit()
