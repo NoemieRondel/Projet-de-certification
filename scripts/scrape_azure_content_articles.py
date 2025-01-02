@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 # Charger les variables d'environnement
 load_dotenv()
 
+
 def connect_db():
     """Connexion à la base de données MySQL."""
     return mysql.connector.connect(
@@ -16,6 +17,7 @@ def connect_db():
         password=os.getenv("DB_PASSWORD"),
         database=os.getenv("DB_NAME")
     )
+
 
 def fetch_azure_blog_content_with_beautifulsoup(url):
     """Récupérer et parser le contenu d'un article Azure Blog en utilisant BeautifulSoup."""
@@ -47,7 +49,7 @@ def fetch_azure_blog_content_with_beautifulsoup(url):
         for h2 in main_content.find_all("h2"):
             if h2.get_text(strip=True):
                 content.append(h2.get_text(strip=True))
-        
+
         for h3 in main_content.find_all("h3"):
             if h3.get_text(strip=True):
                 content.append(h3.get_text(strip=True))
@@ -61,6 +63,7 @@ def fetch_azure_blog_content_with_beautifulsoup(url):
     except Exception as e:
         print(f"Erreur lors de la récupération de l'article {url} : {e}")
         return None
+
 
 def store_article_content(article_id, content):
     """Enregistrer le contenu de l'article dans la base de données."""
@@ -94,6 +97,7 @@ def store_article_content(article_id, content):
         if 'connection' in locals() and connection.is_connected():
             connection.close()
 
+
 def main():
     """Script principal pour récupérer et stocker le contenu des articles Azure Blog."""
     try:
@@ -125,6 +129,7 @@ def main():
             cursor.close()
         if 'connection' in locals() and connection.is_connected():
             connection.close()
+
 
 if __name__ == "__main__":
     main()
