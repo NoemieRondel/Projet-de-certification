@@ -24,8 +24,9 @@ cursor = connection.cursor()
 # Charger le modèle pré-entraîné pour la similarité sémantique
 model = SentenceTransformer('all-MiniLM-L6-v2')
 
-# Liste des mots-clés prédéfinis
-keywords_list = [
+# Liste fusionnée des mots-clés (techniques et généralistes)
+keyword_list = [
+    # Généralistes
     "Artificial Intelligence", "Machine Learning", "Deep Learning",
     "Natural Language Processing", "Computer Vision",
     "Reinforcement Learning", "Big Data", "Data Science", "Robotics",
@@ -42,40 +43,65 @@ keywords_list = [
     "Graph Neural Networks (GNN)", "Contrastive Learning",
     "Large Language Models (LLM)", "Transformer Models", "Microsoft Azure AI",
     "OpenAI", "Mistral", "Anthropic Claude", "Google Bard", "Smartphone",
-    "Telecommunications"
+    "Telecommunications",
+    # Techniques
+    "TensorFlow", "PyTorch", "Keras", "Scikit-learn", "Hugging Face",
+    "Transformers", "FastAI", "NLTK", "spaCy", "ONNX", "OpenCV",
+    "GPT", "BERT", "RoBERTa", "T5", "Llama", "XLNet", "DistilBERT", "ALBERT",
+    "OPT", "ChatGPT", "Codex", "Retrieval-Augmented Generation (RAG)",
+    "Prompt Engineering", "Knowledge Distillation",
+    "Reinforcement Learning from Human Feedback (RLHF)",
+    "Stable Diffusion", "DALL-E", "GANs", "VAEs", "NeRF", "DreamBooth",
+    "ControlNet", "Neural Architecture Search (NAS)", "Meta-learning",
+    "Model Pruning", "Data Augmentation", "Curriculum Learning",
+    "Synthetic Data Generation", "Hybrid AI Systems",
+    "Automated Machine Learning (AutoML)", "YOLO", "ViT", "EfficientNet",
+    "ResNet", "Faster R-CNN", "Mask R-CNN", "DETR", "Swin Transformer",
+    "OpenPose", "CLIP", "SAM (Segment Anything Model)", "Whisper",
+    "Speech-to-Text", "Text-to-Speech", "Wav2Vec", "Tacotron",
+    "DeepSpeech", "WaveNet", "Voice Cloning", "AudioLM", "Microsoft Azure",
+    "AWS AI", "Google Cloud AI", "IBM Watson", "Oracle AI", "H2O.ai",
+    "DataRobot", "Azure OpenAI Service", "Vertex AI", "Anthropic AI",
+    "OpenAI Codex", "Copilot", "GitHub Copilot", "Copilot Studio",
+    "Neo4j", "Snowflake", "BigQuery", "Elasticsearch", "MongoDB Atlas",
+    "Pandas", "Dask", "Knowledge Graphs", "Recommendation Systems",
+    "Intelligent Automation", "RPA (Robotic Process Automation)",
+    "ISO 30465", "IEEE 7000", "GDPR Compliance", "Explainable AI (XAI)",
+    "Fairness in AI", "Docker", "Kubernetes", "MLflow", "TensorBoard",
+    "Weights & Biases", "Airflow", "DVC", "Rasa", "Dialogflow", "Botpress",
+    "Amazon Lex", "Microsoft Bot Framework", "LangChain", "Haystack",
+    "SentenceTransformers", "Edge AI", "TinyML", "Quantum AI", "AI Ethics",
+    "Transferability Testing"
 ]
 
-# Embedding des mots-clés pour les comparaisons
-keyword_embeddings = model.encode(keywords_list, convert_to_tensor=True)
+# Embedding des mots-clés pour comparaison
+keyword_embeddings = model.encode(keyword_list, convert_to_tensor=True)
 
-# Limite des mots-clés à extraire
-MAX_KEYWORDS = 10
+# Limite des mots-clés et seuil de similarité
+MAX_KEYWORDS = 15
 SIMILARITY_THRESHOLD = 0.2
 
 
 # Fonction pour extraire les mots-clés les plus pertinents
-def extract_keywords(text):
+def extract_keywords(text, embeddings, candidates, threshold):
     if not text or not text.strip():
-        return ""  # Retourne vide si le texte est invalide
+        return ""
 
     # Encodage du texte et calcul de la similarité
     text_embedding = model.encode(text, convert_to_tensor=True)
-    cosine_scores = util.cos_sim(text_embedding, keyword_embeddings)[0]
+    cosine_scores = util.cos_sim(text_embedding, embeddings)[0]
 
-    # Filtrer les mots-clés avec un seuil de similarité
-    filtered_keywords = [
-        keywords_list[i] for i in range(len(cosine_scores)) if cosine_scores[i] > SIMILARITY_THRESHOLD
+    # Filtrer les termes avec un seuil de similarité
+    filtered_terms = [
+        candidates[i] for i in range(len(cosine_scores)) if cosine_scores[i] > threshold
     ]
 
-    if not filtered_keywords:
-        return ""  # Retourne vide si aucun mot-clé n'atteint le seuil
-
-    # Trier les mots-clés et retourner les plus pertinents
-    sorted_keywords = [keywords_list[i] for i in cosine_scores.argsort(descending=True)]
-    return ";".join(sorted_keywords[:MAX_KEYWORDS])
+    # Trier les termes par pertinence
+    sorted_terms = [candidates[i] for i in cosine_scores.argsort(descending=True)]
+    return sorted_terms[:MAX_KEYWORDS]
 
 
-# Traitement des articles dans la table article_content
+# Récupérer les articles dans la base de données
 select_query = """
     SELECT ac.article_id, ac.content, a.keywords
     FROM article_content ac
@@ -85,34 +111,33 @@ select_query = """
 cursor.execute(select_query)
 rows = cursor.fetchall()
 
+# Enrichissement des mots-clés pour chaque article
 for article_id, content, current_keywords in rows:
     print(f"Traitement de l'article ID {article_id}...")
 
-    # Extraire les mots-clés à partir du contenu de l'article
-    new_keywords = extract_keywords(content)
+    # Extraire les nouveaux mots-clés
+    new_keywords = extract_keywords(content, keyword_embeddings, keyword_list, SIMILARITY_THRESHOLD)
 
-    if new_keywords:  # Si des mots-clés sont trouvés
-        updated_keywords = new_keywords
-
-        # Si des mots-clés existent déjà dans la table articles, les combiner
-        if current_keywords:
-            current_keywords_set = set(current_keywords.split(";"))
-            new_keywords_set = set(new_keywords.split(";"))
-            combined_keywords = current_keywords_set.union(new_keywords_set)
-            updated_keywords = ";".join(combined_keywords)
-
-        # Mise à jour des mots-clés dans la table articles
-        try:
-            update_query = "UPDATE articles SET keywords = %s WHERE id = %s"
-            cursor.execute(update_query, (updated_keywords, article_id))
-        except mysql.connector.Error as e:
-            print(f"Erreur SQL pour l'ID {article_id}: {e}")
+    # Fusionner avec les mots-clés existants
+    if current_keywords:
+        existing_keywords = set(current_keywords.split(";"))
     else:
-        print(f"Aucun mot-clé extrait pour l'article ID {article_id}.")
+        existing_keywords = set()
+
+    # Ajouter les nouveaux mots-clés sans duplication
+    updated_keywords_set = existing_keywords.union(set(new_keywords))
+    updated_keywords = ";".join(sorted(updated_keywords_set))
+
+    # Mise à jour dans la base de données
+    try:
+        update_query = "UPDATE articles SET keywords = %s WHERE id = %s"
+        cursor.execute(update_query, (updated_keywords, article_id))
+    except mysql.connector.Error as e:
+        print(f"Erreur SQL pour l'article ID {article_id}: {e}")
 
 # Valider les changements et fermer la connexion
 connection.commit()
 cursor.close()
 connection.close()
 
-print("Extraction des mots-clés terminée et base de données mise à jour.")
+print("Enrichissement des mots-clés terminé. Base de données mise à jour.")
