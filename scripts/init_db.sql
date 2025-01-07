@@ -14,7 +14,7 @@ ADD COLUMN link VARCHAR(255);
 ALTER TABLE articles
 ADD COLUMN author VARCHAR(255);
 ALTER TABLE articles ADD CONSTRAINT unique_link UNIQUE (link);
-SELECT * FROM articles;
+
 CREATE TABLE videos (
     id INT AUTO_INCREMENT PRIMARY KEY,
     title VARCHAR(255),
@@ -35,7 +35,6 @@ ADD COLUMN keywords TEXT,
 ADD COLUMN focus_tech VARCHAR(255);
 ALTER TABLE videos
 DROP language;
-SELECT * FROM videos;
 SET SQL_SAFE_UPDATES = 0;
 DELETE FROM videos WHERE video_url IS NULL;
 CREATE TABLE scientific_articles (
@@ -50,7 +49,6 @@ CREATE TABLE scientific_articles (
     keywords TEXT,
     CONSTRAINT unique_article UNIQUE (source, external_id)
 );
-SELECT * FROM scientific_articles;
 
 SET SQL_SAFE_UPDATES = 0;
 
@@ -65,6 +63,12 @@ ALTER TABLE article_content ADD CONSTRAINT unique_article_id UNIQUE (article_id)
 ALTER TABLE articles MODIFY focus_tech varchar(1000);
 
 ALTER TABLE videos
+DROP focus_tech;
+
+UPDATE articles
+SET keywords = "";
+
+ALTER TABLE articles
 DROP focus_tech;
 
 
