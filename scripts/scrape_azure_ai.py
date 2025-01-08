@@ -81,7 +81,7 @@ def process_feed(feed_url, connection):
                 "Azure Blog",
                 publication_date,
                 content,
-                "English",
+                "english",
                 author,
                 link
             ))
@@ -96,7 +96,7 @@ def process_feed(feed_url, connection):
                 "Azure Blog",
                 publication_date,
                 content,
-                "English",
+                "english",
                 link,
                 author
             ))
