@@ -36,10 +36,9 @@ keyword_list = [
     "Neural Networks", "AI Regulation", "Digital Transformation",
     "AI Applications", "AI Research", "Sustainability",
     "Predictive Analytics", "AI Deployment", "Data Privacy", "Generative AI",
-    "AI Strategy", "Artificial General Intelligence (AGI)",
-    "Federated Learning", "Transfer Learning", "Zero-shot Learning",
-    "Few-shot Learning", "Fine-tuning", "Active Learning",
-    "Self-supervised Learning", "Unsupervised Learning",
+    "AI Strategy", "Federated Learning", "Transfer Learning",
+    "Zero-shot Learning", "Few-shot Learning", "Fine-tuning"
+    "Active Learning", "Self-supervised Learning", "Unsupervised Learning",
     "Graph Neural Networks (GNN)", "Contrastive Learning",
     "Large Language Models (LLM)", "Transformer Models", "Microsoft Azure AI",
     "OpenAI", "Mistral", "Anthropic Claude", "Google Bard", "Smartphone",
