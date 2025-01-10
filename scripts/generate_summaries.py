@@ -65,7 +65,7 @@ def main():
     SELECT a.id AS article_id, ac.content AS full_content
     FROM articles a
     INNER JOIN article_content ac ON a.id = ac.article_id
-    WHERE a.content IS NULL OR a.content = ''
+    WHERE a.content IS NULL OR a.content = '' OR a.content = 'No content available.'
     """
     cursor.execute(query)
     articles = cursor.fetchall()
