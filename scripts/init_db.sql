@@ -71,6 +71,27 @@ SET keywords = "";
 ALTER TABLE articles
 DROP focus_tech;
 
+START TRANSACTION;
+
+-- Renommer le champ content en summary
+ALTER TABLE articles CHANGE COLUMN content summary TEXT;
+
+-- Ajouter le champ full_content
+ALTER TABLE articles ADD COLUMN full_content LONGTEXT;
+
+-- Migrer les données
+UPDATE articles a
+INNER JOIN article_content ac ON a.id = ac.article_id
+SET a.full_content = ac.content;
+
+-- Supprimer la table articles_content
+DROP TABLE article_content;
+
+COMMIT;
+
+select * from articles
+
+
 
 
 
