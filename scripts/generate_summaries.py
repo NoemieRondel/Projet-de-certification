@@ -35,8 +35,8 @@ def generate_summary(article_text, max_length=200, min_length=50):
     inputs = tokenizer(
         article_text,
         return_tensors="pt",
-        truncation=True,  # Coupe le texte au maximum supporté
-        max_length=1024  # Longueur maximale pour BART
+        truncation=True,
+        max_length=1024
     )
     
     if inputs.input_ids.size(1) > 1024:  # Vérification pour éviter l'erreur
@@ -62,10 +62,9 @@ def main():
 
     # Récupérer les articles sans résumé
     query = """
-    SELECT a.id AS article_id, ac.content AS full_content
-    FROM articles a
-    INNER JOIN article_content ac ON a.id = ac.article_id
-    WHERE a.content IS NULL OR a.content = '' OR a.content = 'No content available.'
+    SELECT id AS article_id, full_content
+    FROM articles
+    WHERE summary IS NULL OR summary = '' OR summary = 'No summary available.'
     """
     cursor.execute(query)
     articles = cursor.fetchall()
@@ -89,14 +88,14 @@ def main():
 
         try:
             # Vérification de la longueur de l'article
-            if len(full_content) > 4096:  # BART ne gère que 1024 tokens (environ 4000 caractères brut)
+            if len(full_content) > 4096:  # BART ne gère que 1024 tokens (environ 4000 caractères bruts)
                 print(f"Article {article_id} trop long, tronquons...")
                 full_content = full_content[:4000]
 
             summary = generate_summary(full_content, max_length=max_length)
 
             # Mettre à jour la table articles avec le résumé
-            update_query = "UPDATE articles SET content = %s WHERE id = %s"
+            update_query = "UPDATE articles SET summary = %s WHERE id = %s"
             cursor.execute(update_query, (summary, article_id))
             db.commit()
 
