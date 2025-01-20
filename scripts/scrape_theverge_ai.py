@@ -72,18 +72,18 @@ def fetch_theverge_content(url):
             for paragraph in paragraphs:
                 content.append(paragraph.get_text(strip=True))
 
-        return clean_content("\n".join(content)) if content else "No content found."
+        return clean_content("\n".join(content)) if content else "Aucun contenu trouvé."
     except requests.exceptions.RequestException as e:
         return f"Error fetching content: {e}"
 
 
 def fetch_articles():
     """Récupère les articles pertinents depuis le flux RSS."""
-    print("Fetching articles from The Verge RSS feed...")
+    print("Récupération d'articles à partir du flux RSS The Verge...")
     feed = feedparser.parse(RSS_URL)
 
     if not feed.entries:
-        print("No articles fetched. Check the RSS feed URL.")
+        print("Aucun article récupéré. Vérifiez l'URL du flux RSS.")
         return []
 
     articles = []
@@ -99,7 +99,7 @@ def fetch_articles():
         try:
             published_date = datetime.strptime(published_raw, "%Y-%m-%dT%H:%M:%S%z").date()
         except (ValueError, TypeError):
-            print(f"Invalid publication date: {published_raw}")
+            print(f"Date de publication invalide: {published_raw}")
 
         # Vérification de la pertinence
         if is_relevant(entry):
@@ -115,13 +115,13 @@ def fetch_articles():
                 "author": author
             })
 
-    print(f"{len(articles)} relevant articles fetched.")
+    print(f"{len(articles)} articles pertinents récupérés.")
     return articles
 
 
 def insert_articles_to_db(articles):
     """Insère ou met à jour les articles dans la base de données."""
-    print("Inserting articles into the database...")
+    print("Insertion des articles dans la base de données...")
 
     connection = None
     try:
@@ -153,11 +153,11 @@ def insert_articles_to_db(articles):
                 ))
                 connection.commit()
             except mysql.connector.Error as err:
-                print(f"Error inserting article: {err}")
+                print(f"Erreur lors de l'insertion de l'article : {err}")
                 print(f"Article data: {article}")
 
     except mysql.connector.Error as err:
-        print(f"Database connection error: {err}")
+        print(f"Erreur de connexion à la base de données : {err}")
     finally:
         if connection:
             connection.close()
@@ -168,7 +168,7 @@ def main():
     if articles:
         insert_articles_to_db(articles)
     else:
-        print("No relevant articles to insert.")
+        print("Aucun article pertinent à insérer.")
 
 
 if __name__ == "__main__":
