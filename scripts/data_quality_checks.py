@@ -23,19 +23,11 @@ def connect_to_database():
 
 def check_empty_fields(cursor, table, field):
     """Vérifie les champs vides dans une table donnée."""
-    query = f"SELECT id FROM {table} WHERE {field} IS NULL OR {field} = '';"
-    cursor.execute(query)
-    return cursor.fetchall()
+    if "date" in field.lower():  # Si le champ est de type 'date', on ne vérifie que pour NULL
+        query = f"SELECT id FROM {table} WHERE {field} IS NULL;"
+    else:  # Sinon, on vérifie si le champ est NULL ou vide
+        query = f"SELECT id FROM {table} WHERE {field} IS NULL OR {field} = '';"
 
-
-def check_broken_relations(cursor):
-    """Vérifie les relations cassées entre articles et article_content."""
-    query = """
-    SELECT ac.article_id
-    FROM article_content ac
-    LEFT JOIN articles a ON ac.article_id = a.id
-    WHERE a.id IS NULL;
-    """
     cursor.execute(query)
     return cursor.fetchall()
 
@@ -46,17 +38,31 @@ def main():
         connection = connect_to_database()
         cursor = connection.cursor(dictionary=True)
 
-        print("\n--- Vérification des champs vides ---")
+        # Vérification des champs vides dans la table articles
+        print("\n--- Vérification des champs vides (articles) ---")
         empty_titles = check_empty_fields(cursor, "articles", "title")
-        empty_links = check_empty_fields(cursor, "articles", "link")
+        empty_publication_date = check_empty_fields(cursor, "articles", "publication_date")
+        empty_summary = check_empty_fields(cursor, "articles", "summary")
+        empty_full_content = check_empty_fields(cursor, "articles", "full_content")
+        empty_author = check_empty_fields(cursor, "articles", "author")
         print(f"Articles avec titres vides : {len(empty_titles)}")
-        print(f"Articles avec liens vides : {len(empty_links)}")
+        print(f"Articles avec dates de publication vides : {len(empty_publication_date)}")
+        print(f"Articles avec résumés vides : {len(empty_summary)}")
+        print(f"Articles avec contenus complets vides : {len(empty_full_content)}")
+        print(f"Articles avec auteurs vides : {len(empty_author)}")
 
-        print("\n--- Vérification des relations cassées ---")
-        broken_relations = check_broken_relations(cursor)
-        print(f"Relations cassées (article_content -> articles) : {len(broken_relations)}")
-        if broken_relations:
-            print("ID des relations cassées : ", [rel['article_id'] for rel in broken_relations])
+        # Vérification des champs vides dans la table scientific_articles
+        print("\n--- Vérification des champs vides (scientific_articles) ---")
+        empty_titles_scientific = check_empty_fields(cursor, "scientific_articles", "title")
+        empty_abstracts = check_empty_fields(cursor, "scientific_articles", "abstract")
+        empty_keywords = check_empty_fields(cursor, "scientific_articles", "keywords")
+        empty_publication_date_scientific = check_empty_fields(cursor, "scientific_articles", "publication_date")
+        empty_author_scientific = check_empty_fields(cursor, "scientific_articles", "authors")
+        print(f"Articles scientifiques avec titles vides : {len(empty_titles_scientific)}")
+        print(f"Articles scientifiques avec abstracts vides : {len(empty_abstracts)}")
+        print(f"Articles scientifiques avec mots-clés vides : {len(empty_keywords)}")
+        print(f"Articles scientifiques avec dates de publication vides : {len(empty_publication_date_scientific)}")
+        print(f"Articles scientifiques avec auteurs vides : {len(empty_author_scientific)}")
 
     except mysql.connector.Error as err:
         print(f"Erreur : {err}")

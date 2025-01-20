@@ -102,20 +102,19 @@ def extract_keywords(text, embeddings, candidates, threshold):
 
 # Récupérer les articles dans la base de données
 select_query = """
-    SELECT ac.article_id, ac.content, a.keywords
-    FROM article_content ac
-    JOIN articles a ON ac.article_id = a.id
-    WHERE ac.content IS NOT NULL
+    SELECT id, full_content, summary, keywords
+    FROM articles
+    WHERE full_content IS NOT NULL
 """
 cursor.execute(select_query)
 rows = cursor.fetchall()
 
 # Enrichissement des mots-clés pour chaque article
-for article_id, content, current_keywords in rows:
+for article_id, full_content, summary, current_keywords in rows:
     print(f"Traitement de l'article ID {article_id}...")
 
-    # Extraire les nouveaux mots-clés
-    new_keywords = extract_keywords(content, keyword_embeddings, keyword_list, SIMILARITY_THRESHOLD)
+    # Extraire les nouveaux mots-clés à partir du contenu complet ou résumé
+    new_keywords = extract_keywords(full_content + " " + summary, keyword_embeddings, keyword_list, SIMILARITY_THRESHOLD)
 
     # Fusionner avec les mots-clés existants
     if current_keywords:
