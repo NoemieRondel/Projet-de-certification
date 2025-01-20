@@ -1,124 +1,176 @@
 import os
-import requests
-from bs4 import BeautifulSoup
 import mysql.connector
+import feedparser
+from datetime import datetime
 from dotenv import load_dotenv
+from bs4 import BeautifulSoup
+import re
+import requests
 
 # Charger les variables d'environnement
 load_dotenv()
 
+# Configuration de la base de données
+DB_HOST = os.getenv("DB_HOST")
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_NAME = os.getenv("DB_NAME")
 
-def connect_db():
-    """Connexion à la base de données MySQL."""
-    return mysql.connector.connect(
-        host=os.getenv("DB_HOST"),
-        user=os.getenv("DB_USER"),
-        password=os.getenv("DB_PASSWORD"),
-        database=os.getenv("DB_NAME")
-    )
+# URL du flux RSS
+RSS_URL = "https://techcrunch.com/feed/"
+
+# Mots-clés pour filtrer les articles pertinents
+KEYWORDS = ["AI", "artificial intelligence", "machine learning",
+            "neural networks", "deep learning"]
 
 
-def fetch_techcrunch_content(url):
-    """
-    Récupérer le contenu complet d'un article TechCrunch.
-    """
+def is_relevant(entry):
+    """Vérifie si l'article est pertinent en fonction des mots-clés."""
+    title = entry.get("title", "").lower()
+    content = entry.get("description", "")
+    return any(keyword.lower() in title or keyword.lower() in content for keyword in KEYWORDS)
+
+
+def clean_content(content):
+    """Nettoie et simplifie le contenu HTML."""
+    if not content:
+        return ""
+
+    soup = BeautifulSoup(content, "html.parser")
+    # Supprimer les balises <script>, <style>, etc.
+    for tag in soup(["script", "style", "figure"]):
+        tag.decompose()
+    # Récupérer le texte brut
+    text = soup.get_text(separator="\n")
+    # Supprimer les espaces multiples
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
+def fetch_full_content(url):
+    """Récupère le contenu complet de l'article à partir de l'URL."""
     try:
-        # Envoyer une requête HTTP pour récupérer le contenu de la page
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()  # Vérifier si la requête s'est bien passée
-
-        # Parser le HTML de la page
+        response = requests.get(url)
+        response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
+        article_section = soup.find("div", class_="entry-content")
 
-        # Localiser le conteneur principal de l'article
-        article_section = soup.find("div", class_="entry-content wp-block-post-content is-layout-constrained wp-block-post-content-is-layout-constrained")
-
-        # Vérifier si le conteneur de l'article existe
         if not article_section:
-            print(f"Aucun contenu trouvé pour l'URL : {url}")
-            return None
+            return "Aucun contenu trouvé ou structure HTML différente."
 
-        # Extraire le texte de chaque paragraphe
         content = []
         paragraphs = article_section.find_all("p")
         for paragraph in paragraphs:
             content.append(paragraph.get_text(strip=True))
 
-        # Joindre le contenu extrait avec des sauts de ligne
         full_content = "\n".join(content)
-        if full_content:
-            print(f"Contenu récupéré pour {url} (extrait : {full_content[:100]}...)")
-            return full_content
-        else:
-            print(f"Contenu vide pour l'URL : {url}")
-            return None
-
+        return full_content if full_content else "Aucun contenu pertinent trouvé."
     except requests.exceptions.RequestException as e:
-        print(f"Erreur réseau pour {url} : {e}")
-        return None
+        return f"Erreur lors de la récupération de l'article : {e}"
 
 
-def update_article_content(article_id, full_content):
-    """
-    Met à jour le contenu complet d'un article dans la table `articles`.
-    """
+def fetch_articles():
+    """Récupère et traite les articles depuis le flux RSS."""
+    print("Récupération des articles depuis TechCrunch...")
+    feed = feedparser.parse(RSS_URL)
+
+    if not feed.entries:
+        print("Aucun article récupéré. Vérifiez l'URL du flux RSS.")
+        return []
+
+    articles = []
+    for entry in feed.entries:
+        title = entry.get("title", "None")
+        link = entry.get("link", "")
+        published_raw = entry.get("published", "")
+        content = entry.get("content", [{}])[0].get("value", "")
+        if not content:
+            content = entry.get("description", "")
+
+        # Extraction de l'auteur via dc:creator
+        author = entry.get("dc:creator", None)
+        if not author:
+            author = entry.get("author", "Unknown")
+
+        # Nettoyage et conversion des dates
+        published_date = None
+        try:
+            published_date = datetime.strptime(published_raw, "%a, %d %b %Y %H:%M:%S %z").date()
+        except (ValueError, TypeError):
+            print(f"Date de publication invalide : {published_raw}")
+
+        # Vérification de la pertinence
+        if is_relevant(entry):
+            full_content = fetch_full_content(link)  # Récupère le contenu
+            articles.append({
+                "title": title,
+                "link": link,
+                "published_date": published_date,
+                "summary": clean_content(content),  # Résumé extrait
+                "full_content": full_content,  # Contenu complet de l'article
+                "language": "english",
+                "source": "TechCrunch",
+                "author": author
+            })
+
+    print(f"{len(articles)} articles pertinents récupérés.")
+    return articles
+
+
+def insert_articles_to_db(articles):
+    """Insère ou met à jour les articles dans la base de données."""
+    print("Insertion des articles dans la base de données...")
+
+    connection = None
     try:
-        connection = connect_db()
+        connection = mysql.connector.connect(
+            host=DB_HOST,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            database=DB_NAME
+        )
         cursor = connection.cursor()
 
-        # Mettre à jour le champ `full_content` si vide
-        cursor.execute(
-            "UPDATE articles SET full_content = %s WHERE id = %s AND (full_content IS NULL OR full_content = '')",
-            (full_content, article_id)
-        )
-        connection.commit()
+        for article in articles:
+            try:
+                # Requête d'insertion avec mise à jour
+                query = """
+                INSERT INTO articles (title, link, publication_date, summary, full_content, language, source, author)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                summary = VALUES(summary),
+                full_content = VALUES(full_content),
+                publication_date = VALUES(publication_date),
+                author = VALUES(author);
+                """
+                cursor.execute(query, (
+                    article["title"],
+                    article["link"],
+                    article["published_date"],
+                    article["summary"],
+                    article["full_content"],
+                    article["language"],
+                    article["source"],
+                    article["author"]
+                ))
+                connection.commit()
+            except mysql.connector.Error as err:
+                print(f"Erreur lors de l'insertion de l'article : {err}")
+                print(f"Données de l'article : {article}")
 
-        if cursor.rowcount > 0:
-            print(f"Contenu de l'article {article_id} mis à jour avec succès.")
-        else:
-            print(f"L'article {article_id} a déjà un contenu ou n'existe pas.")
-
-    except mysql.connector.Error as e:
-        print(f"Erreur lors de la mise à jour de l'article {article_id} : {e}")
+    except mysql.connector.Error as err:
+        print(f"Erreur de connexion à la base de données : {err}")
     finally:
-        cursor.close()
-        connection.close()
+        if connection:
+            connection.close()
 
 
 def main():
-    """
-    Script principal pour récupérer et mettre à jour le contenu des articles TechCrunch.
-    """
-    try:
-        connection = connect_db()
-        cursor = connection.cursor(dictionary=True)
-
-        # Sélectionner les articles TechCrunch dont le contenu complet est vide
-        cursor.execute("SELECT id, link FROM articles WHERE source = 'TechCrunch' AND (full_content IS NULL OR full_content = '')")
-        articles = cursor.fetchall()
-
-        for article in articles:
-            article_id = article["id"]
-            url = article["link"]
-
-            print(f"Traitement de l'article {article_id} ({url})...")
-
-            # Récupérer le contenu complet de l'article
-            full_content = fetch_techcrunch_content(url)
-            if not full_content:
-                print(f"Impossible de récupérer le contenu pour l'article {article_id}.")
-                continue
-
-            # Mettre à jour le contenu complet dans la table articles
-            update_article_content(article_id, full_content)
-
-        print("Traitement terminé.")
-    except Exception as e:
-        print(f"Erreur dans le script principal : {e}")
-    finally:
-        if connection.is_connected():
-            cursor.close()
-            connection.close()
+    articles = fetch_articles()
+    if articles:
+        insert_articles_to_db(articles)
+    else:
+        print("Aucun article pertinent à insérer.")
 
 
 if __name__ == "__main__":
