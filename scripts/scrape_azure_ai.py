@@ -1,9 +1,11 @@
 import mysql.connector
 import feedparser
+import requests
 from datetime import datetime
 from dotenv import load_dotenv
-import os
 from bs4 import BeautifulSoup
+import os
+import time
 
 # Charger les variables d'environnement
 load_dotenv()
@@ -30,91 +32,128 @@ def connect_to_database():
         return None
 
 
-# Fonction pour valider et formater la date
+# Valider et formater la date
 def validate_and_format_date(date_str):
     if not date_str:
         return None
     try:
-        # Essayons de parser la date
         date_obj = datetime.strptime(date_str, '%a, %d %b %Y %H:%M:%S %z')
         return date_obj.date()
     except ValueError:
         return None
 
 
-# Fonction pour nettoyer le contenu HTML
+# Nettoyer le contenu HTML
 def clean_html_content(content):
-    soup = BeautifulSoup(content, "lxml")  # Parser le contenu HTML
-    return soup.get_text()  # Extraire uniquement le texte brut
+    soup = BeautifulSoup(content, "lxml")
+    return soup.get_text()
 
 
-# Fonction pour traiter chaque article du flux RSS
+# Récupérer le contenu complet de l'article avec BeautifulSoup
+def fetch_full_content(url):
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36"
+        }
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code != 200:
+            print(f"Erreur HTTP {response.status_code} pour l'URL : {url}")
+            return None
+
+        soup = BeautifulSoup(response.text, 'html.parser')
+        main_content = soup.find("article") or soup.find("main")
+        if not main_content:
+            print(f"Impossible de trouver le contenu principal pour {url}")
+            return None
+
+        content = []
+        for tag in ["p", "h2", "h3"]:
+            for element in main_content.find_all(tag):
+                text = element.get_text(strip=True)
+                if text:
+                    content.append(text)
+
+        return "\n".join(content) if content else None
+    except Exception as e:
+        print(f"Erreur lors de l'extraction du contenu complet : {e}")
+        return None
+
+
+# Traiter chaque flux RSS
 def process_feed(feed_url, connection):
-    feed = feedparser.parse(feed_url)
-    cursor = connection.cursor()
-    for entry in feed.entries:
-        title = entry.title
-        link = entry.link
-        author = entry.get("author", "Unknown")
-        content = entry.get("summary", entry.get("content", [{}])[0].get("value", "No content"))
-        content = clean_html_content(content)  # Nettoyer le contenu HTML
-        publication_date = validate_and_format_date(entry.get("published"))
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36"
+        }
+        # Ajout du User-Agent
+        response = requests.get(feed_url, headers=headers, timeout=30)
+        if response.status_code != 200:
+            print(f"Erreur HTTP {response.status_code} pour le flux RSS : {feed_url}")
+            return
 
-        # Vérifier si l'article existe déjà
-        cursor.execute("SELECT COUNT(*) FROM articles WHERE link = %s", (link,))
-        article_exists = cursor.fetchone()[0] > 0
+        feed = feedparser.parse(response.content)
+        cursor = connection.cursor()
 
-        if article_exists:
-            print(f"L'article {title} existe déjà. Mise à jour en cours...")
-            update_query = """
-                UPDATE articles
-                SET title = %s,
-                    source = %s,
-                    publication_date = %s,
-                    content = %s,
-                    language = %s,
-                    author = %s
-                WHERE link = %s
-            """
-            cursor.execute(update_query, (
-                title,
-                "Azure Blog",
-                publication_date,
-                content,
-                "english",
-                author,
-                link
-            ))
-        else:
-            print(f"L'article {title} n'existe pas. Insertion dans la base de données...")
-            insert_query = """
-                INSERT INTO articles (title, source, publication_date, content, language, link, author)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-            """
-            cursor.execute(insert_query, (
-                title,
-                "Azure Blog",
-                publication_date,
-                content,
-                "english",
-                link,
-                author
-            ))
+        for entry in feed.entries:
+            title = entry.title
+            link = entry.link
+            author = entry.get("author", "Unknown")
+            summary = clean_html_content(entry.get("summary", "No summary available"))
+            publication_date = validate_and_format_date(entry.get("published"))
+            full_content = fetch_full_content(link)
 
-    connection.commit()
-    print(f"Traitement du flux : {feed_url} terminé.")
-    cursor.close()
+            # Vérifier si l'article existe déjà
+            cursor.execute("SELECT COUNT(*) FROM articles WHERE link = %s", (link,))
+            article_exists = cursor.fetchone()[0] > 0
+
+            if article_exists:
+                print(f"L'article '{title}' existe déjà. Mise à jour...")
+                update_query = """
+                    UPDATE articles
+                    SET title = %s, source = %s, publication_date = %s,
+                        summary = %s, full_content = %s, language = %s, author = %s
+                    WHERE link = %s
+                """
+                cursor.execute(update_query, (
+                    title, "Azure Blog", publication_date, summary,
+                    full_content, "english", author, link
+                ))
+            else:
+                print(f"Insertion de l'article '{title}' dans la base de données...")
+                insert_query = """
+                    INSERT INTO articles (title, source, publication_date, summary, 
+                        full_content, language, link, author)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """
+                cursor.execute(insert_query, (
+                    title, "Azure Blog", publication_date, summary,
+                    full_content, "english", link, author
+                ))
+
+            # Pause pour éviter le blocage
+            time.sleep(1)
+
+        connection.commit()
+        print(f"Traitement du flux : {feed_url} terminé.")
+        cursor.close()
+    except Exception as e:
+        print(f"Erreur lors du traitement du flux {feed_url} : {e}")
 
 
-# Fonction principale
+# Script principal
 def main():
     connection = connect_to_database()
     if connection is None:
         return
 
-    # Flux RSS pour Azure AI
-    azure_feed_url = "https://azure.microsoft.com/en-us/blog/feed/"
-    process_feed(azure_feed_url, connection)
+    # Liste des flux RSS à traiter (uniquement Azure Blog)
+    feeds = [
+        "https://azure.microsoft.com/en-us/blog/feed/"
+    ]
+
+    for feed_url in feeds:
+        print(f"Traitement du flux : {feed_url}...")
+        process_feed(feed_url, connection)
 
     connection.close()
 

@@ -1,10 +1,11 @@
+import os
+import time
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 from urllib.parse import urljoin
 import mysql.connector
 from dotenv import load_dotenv
-import os
 
 # Charger les variables d'environnement
 load_dotenv()
@@ -22,23 +23,29 @@ BASE_URL = "https://digital-strategy.ec.europa.eu"
 PAGE_URL = "/en/related-content?topic=119"
 
 
+def connect_db():
+    """Connexion à la base de données MySQL."""
+    return mysql.connector.connect(**DB_CONFIG)
+
+
 def save_to_db(article_data):
     """
     Enregistre ou met à jour les données d'un article dans la base de données.
     """
     query_insert = """
-        INSERT INTO articles (title, source, publication_date, link, author, content, language)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO articles (title, source, publication_date, link, author, full_content, summary, language)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         ON DUPLICATE KEY UPDATE
         title = VALUES(title),
         source = VALUES(source),
         publication_date = VALUES(publication_date),
         author = VALUES(author),
-        content = VALUES(content),
+        full_content = VALUES(full_content),
+        summary = VALUES(summary),
         language = VALUES(language);
     """
     try:
-        conn = mysql.connector.connect(**DB_CONFIG)
+        conn = connect_db()
         cursor = conn.cursor()
         cursor.execute(query_insert, (
             article_data["title"],
@@ -46,7 +53,8 @@ def save_to_db(article_data):
             article_data["publication_date"],
             article_data["link"],
             article_data["author"],
-            article_data["content"],
+            article_data["full_content"],
+            article_data["summary"],
             article_data["language"],
         ))
         conn.commit()
@@ -66,22 +74,56 @@ def extract_date(article):
     """
     time_tag = article.find("time")
     if time_tag:
-        date_str = time_tag.get("datetime").strip()
+        date_str = time_tag.get("datetime", "").strip()
 
         if not date_str:
             print("Date vide pour cet article.")
             return None
 
-        # Nettoyage si la date contient un suffixe ou préfixe comme " -"
-        date_str = date_str.split(" -")[0]
-
         try:
-            formatted_date = datetime.strptime(date_str, "%d %B %Y").strftime("%Y-%m-%d")
-            return formatted_date
-        except ValueError as e:
+            # Essayez plusieurs formats de date
+            for fmt in ("%d %B %Y", "%Y-%m-%d"):
+                try:
+                    return datetime.strptime(date_str, fmt).strftime("%Y-%m-%d")
+                except ValueError:
+                    continue
+            print(f"Format de date non pris en charge : {date_str}")
+            return None
+        except Exception as e:
             print(f"Erreur lors de la conversion de la date : {e}")
             return None
     return None
+
+
+def fetch_digital_strategy_content(url):
+    """
+    Récupérer et parser le contenu complet d'un article Digital Strategy.
+    """
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
+        }
+        response = requests.get(url, headers=headers)
+
+        if response.status_code == 429:
+            print("Trop de requêtes ! Pause de 60 secondes.")
+            time.sleep(60)
+            return fetch_digital_strategy_content(url)
+
+        response.raise_for_status()
+
+        soup = BeautifulSoup(response.text, 'html.parser')
+        main_content = soup.find("div", class_="cnt-main-body")
+
+        if main_content:
+            paragraphs = [p.get_text(strip=True) for p in main_content.find_all("p")]
+            return "\n".join(paragraphs)
+        else:
+            print(f"Aucun contenu trouvé pour l'URL {url}.")
+            return None
+    except requests.exceptions.RequestException as e:
+        print(f"Erreur lors de la récupération de l'article {url} : {e}")
+        return None
 
 
 def scrape_page(url):
@@ -97,15 +139,17 @@ def scrape_page(url):
     articles = soup.find_all("article", class_="ecl-u-d-flex")
 
     for article in articles:
-        # Extraction des informations
         title_tag = article.find("a", class_="ecl-link")
         title = title_tag.text.strip() if title_tag else "No title"
         link = urljoin(BASE_URL, title_tag["href"]) if title_tag else None
 
-        date = extract_date(article)
+        publication_date = extract_date(article)
 
-        content_tag = article.find("div", class_="cnt-teaser")
-        content = content_tag.text.strip() if content_tag else "No content available."
+        summary_tag = article.find("div", class_="cnt-teaser")
+        summary = summary_tag.text.strip() if summary_tag else "No summary available."
+
+        # Récupérer le contenu complet
+        full_content = fetch_digital_strategy_content(link) if link else None
 
         # Champs fixes
         source = "Digital Strategy"
@@ -116,17 +160,18 @@ def scrape_page(url):
         article_data = {
             "title": title,
             "source": source,
-            "publication_date": date,
+            "publication_date": publication_date,
             "link": link,
             "author": author,
-            "content": content,
+            "full_content": full_content,
+            "summary": summary,
             "language": language,
         }
 
         # Sauvegarder dans la base
         save_to_db(article_data)
+        time.sleep(2)  # Pause pour éviter de surcharger le serveur
 
 
 if __name__ == "__main__":
-    # Scraping de la page principale
     scrape_page(PAGE_URL)

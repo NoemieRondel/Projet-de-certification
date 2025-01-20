@@ -40,7 +40,7 @@ def fetch_rss_articles(rss_url):
                     "language": "english",
                     "link": entry.link,
                     "source": "MIT Technology Review",
-                    "content": entry.description if 'description' in entry else None
+                    "full_content": entry.description if 'description' in entry else None
                 }
                 articles.append(article)
         else:
@@ -58,19 +58,14 @@ def insert_articles_and_content_to_db(articles):
 
     # Requêtes SQL
     insert_article = """
-        INSERT INTO articles (title, author, publication_date, language, link, source)
-        VALUES (%s, %s, %s, %s, %s, %s)
+        INSERT INTO articles (title, author, publication_date, language, link, source, full_content)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
         ON DUPLICATE KEY UPDATE
             title = VALUES(title),
             author = VALUES(author),
             publication_date = VALUES(publication_date),
-            source = VALUES(source)
-    """
-    insert_content = """
-        INSERT INTO article_content (article_id, content)
-        VALUES (%s, %s)
-        ON DUPLICATE KEY UPDATE
-            content = VALUES(content)
+            source = VALUES(source),
+            full_content = VALUES(full_content)
     """
     get_article_id = "SELECT id FROM articles WHERE link = %s"
 
@@ -83,17 +78,9 @@ def insert_articles_and_content_to_db(articles):
             article["publication_date"],
             article["language"],
             article["link"],
-            article["source"]
+            article["source"],
+            article["full_content"]
         ))
-
-        # Récupérer l'ID de l'article (soit inséré soit existant)
-        cursor.execute(get_article_id, (article["link"],))
-        result = cursor.fetchone()
-        article_id = result[0] if result else None
-
-        if article_id:
-            # Insérer ou mettre à jour le contenu associé
-            cursor.execute(insert_content, (article_id, article["content"]))
 
     # Commit et fermeture de la connexion
     conn.commit()

@@ -1,8 +1,11 @@
 import os
+import requests
+from bs4 import BeautifulSoup
 import mysql.connector
 import feedparser
 from datetime import datetime
 from dotenv import load_dotenv
+import re
 
 # Charger les variables d'environnement
 load_dotenv()
@@ -20,38 +23,67 @@ RSS_URL = "https://www.theverge.com/rss/index.xml"
 KEYWORDS = ["AI", "artificial intelligence", "machine learning", "neural networks", "deep learning"]
 
 
+def connect_db():
+    """Connexion à la base de données MySQL."""
+    return mysql.connector.connect(
+        host=DB_HOST,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME
+    )
+
+
 def is_relevant(entry):
     """Vérifie si l'article est pertinent en fonction des mots-clés."""
     title = entry.get("title", "").lower()
-    content = entry.get("content", [{}])[0].get("value", "").lower()
-    return any(keyword.lower() in title or keyword.lower() in content for keyword in KEYWORDS)
+    summary = entry.get("summary", "").lower()
+    return any(keyword.lower() in title or keyword.lower() in summary for keyword in KEYWORDS)
 
 
 def clean_content(content):
-    """Nettoie et simplifie le contenu HTML."""
+    """Nettoie le contenu HTML pour obtenir du texte brut."""
     if not content:
         return ""
-    import re
-    from bs4 import BeautifulSoup
-
     soup = BeautifulSoup(content, "html.parser")
-    # Supprimer les balises <script>, <style>, etc.
+    # Supprimer les balises inutiles
     for tag in soup(["script", "style", "figure"]):
         tag.decompose()
-    # Récupérer le texte brut
-    text = soup.get_text(separator="\n")
+    # Obtenir le texte brut
+    text = soup.get_text(separator="\n").strip()
     # Supprimer les espaces multiples
-    text = re.sub(r"\s+", " ", text).strip()
+    text = re.sub(r"\s+", " ", text)
     return text
 
 
+def fetch_theverge_content(url):
+    """Récupère le contenu complet de l'article à partir de son URL."""
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+
+        soup = BeautifulSoup(response.text, 'html.parser')
+
+        # Localiser les sections contenant le contenu de l'article
+        article_sections = soup.find_all("div", class_="duet--article--article-body-component")
+
+        content = []
+        for section in article_sections:
+            paragraphs = section.find_all("p", class_="duet--article--dangerously-set-cms-markup")
+            for paragraph in paragraphs:
+                content.append(paragraph.get_text(strip=True))
+
+        return clean_content("\n".join(content)) if content else "No content found."
+    except requests.exceptions.RequestException as e:
+        return f"Error fetching content: {e}"
+
+
 def fetch_articles():
-    """Récupère et traite les articles depuis le flux RSS."""
-    print("Récupération des articles depuis The Verge...")
+    """Récupère les articles pertinents depuis le flux RSS."""
+    print("Fetching articles from The Verge RSS feed...")
     feed = feedparser.parse(RSS_URL)
 
     if not feed.entries:
-        print("Aucun article récupéré. Vérifiez l'URL du flux RSS.")
+        print("No articles fetched. Check the RSS feed URL.")
         return []
 
     articles = []
@@ -59,54 +91,52 @@ def fetch_articles():
         title = entry.get("title", "None")
         link = entry.get("link", "")
         published_raw = entry.get("published", "")
-        content = entry.get("content", [{}])[0].get("value", "")
-        author = entry.get("author", "Unknown") 
+        summary = entry.get("summary", "No summary provided")  # Extraction du summary
+        author = entry.get("author", "Unknown")
 
-        # Nettoyage et conversion des dates
+        # Conversion et nettoyage de la date
         published_date = None
         try:
             published_date = datetime.strptime(published_raw, "%Y-%m-%dT%H:%M:%S%z").date()
         except (ValueError, TypeError):
-            print(f"Date de publication invalide : {published_raw}")
+            print(f"Invalid publication date: {published_raw}")
 
         # Vérification de la pertinence
         if is_relevant(entry):
+            full_content = fetch_theverge_content(link)  # Récupération du contenu complet
             articles.append({
                 "title": title,
                 "link": link,
                 "published_date": published_date,
-                "content": clean_content(content),
+                "summary": clean_content(summary),  # Nettoyage du summary si nécessaire
+                "full_content": full_content,
                 "language": "english",
                 "source": "The Verge",
                 "author": author
             })
 
-    print(f"{len(articles)} articles pertinents récupérés.")
+    print(f"{len(articles)} relevant articles fetched.")
     return articles
 
 
 def insert_articles_to_db(articles):
     """Insère ou met à jour les articles dans la base de données."""
-    print("Insertion des articles dans la base de données...")
+    print("Inserting articles into the database...")
 
     connection = None
     try:
-        connection = mysql.connector.connect(
-            host=DB_HOST,
-            user=DB_USER,
-            password=DB_PASSWORD,
-            database=DB_NAME
-        )
+        connection = connect_db()
         cursor = connection.cursor()
 
         for article in articles:
             try:
                 # Requête d'insertion avec mise à jour
                 query = """
-                INSERT INTO articles (title, link, publication_date, content, language, source, author)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO articles (title, link, publication_date, summary, full_content, language, source, author)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
-                content = VALUES(content),
+                summary = VALUES(summary),
+                full_content = VALUES(full_content),
                 publication_date = VALUES(publication_date),
                 source = VALUES(source),
                 author = VALUES(author);
@@ -115,18 +145,19 @@ def insert_articles_to_db(articles):
                     article["title"],
                     article["link"],
                     article["published_date"],
-                    article["content"],
+                    article["summary"],
+                    article["full_content"],
                     article["language"],
                     article["source"],
                     article["author"]
                 ))
                 connection.commit()
             except mysql.connector.Error as err:
-                print(f"Erreur lors de l'insertion de l'article : {err}")
-                print(f"Données de l'article : {article}")
+                print(f"Error inserting article: {err}")
+                print(f"Article data: {article}")
 
     except mysql.connector.Error as err:
-        print(f"Erreur de connexion à la base de données : {err}")
+        print(f"Database connection error: {err}")
     finally:
         if connection:
             connection.close()
@@ -137,7 +168,7 @@ def main():
     if articles:
         insert_articles_to_db(articles)
     else:
-        print("Aucun article pertinent à insérer.")
+        print("No relevant articles to insert.")
 
 
 if __name__ == "__main__":

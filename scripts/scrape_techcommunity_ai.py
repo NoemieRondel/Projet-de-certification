@@ -26,7 +26,7 @@ def fetch_rss_articles(rss_url):
     articles = []
 
     for entry in feed.entries:
-        # Nettoyer le contenu HTML dans la description
+        # Récupérer le résumé et le contenu brut
         raw_content = entry.description if 'description' in entry else None
         clean_content = clean_html(raw_content) if raw_content else None
 
@@ -37,7 +37,7 @@ def fetch_rss_articles(rss_url):
             "language": "english",
             "link": entry.link,
             "source": "Tech Community Microsoft",
-            "content": clean_content
+            "full_content": clean_content
         }
         articles.append(article)
 
@@ -51,49 +51,34 @@ def clean_html(html_content):
 
 
 # Fonction pour insérer ou mettre à jour les articles dans la base de données
-def insert_articles_and_content_to_db(articles):
+def insert_articles_to_db(articles):
     # Connexion à la base de données
     conn = mysql.connector.connect(**db_config)
     cursor = conn.cursor()
 
-    # Requêtes SQL
+    # Requête SQL pour insérer ou mettre à jour les articles
     insert_article = """
-        INSERT INTO articles (title, author, publication_date, language, link, source)
-        VALUES (%s, %s, %s, %s, %s, %s)
+        INSERT INTO articles (title, author, publication_date, language, link, source, full_content)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
         ON DUPLICATE KEY UPDATE
             title = VALUES(title),
             author = VALUES(author),
             publication_date = VALUES(publication_date),
-            source = VALUES(source)
+            source = VALUES(source),
+            full_content = VALUES(full_content)
     """
-    insert_content = """
-        INSERT INTO article_content (article_id, content)
-        VALUES (%s, %s)
-        ON DUPLICATE KEY UPDATE
-            content = VALUES(content)
-    """
-    get_article_id = "SELECT id FROM articles WHERE link = %s"
 
     # Parcours des articles
     for article in articles:
-        # Insérer ou mettre à jour l'article
         cursor.execute(insert_article, (
             article["title"],
             article["author"],
             article["publication_date"],
             article["language"],
             article["link"],
-            article["source"]
+            article["source"],
+            article["full_content"]
         ))
-
-        # Récupérer l'ID de l'article (soit inséré soit existant)
-        cursor.execute(get_article_id, (article["link"],))
-        result = cursor.fetchone()
-        article_id = result[0] if result else None
-
-        if article_id:
-            # Insérer ou mettre à jour le contenu associé
-            cursor.execute(insert_content, (article_id, article["content"]))
 
     # Commit et fermeture de la connexion
     conn.commit()
@@ -106,8 +91,8 @@ if __name__ == "__main__":
     try:
         articles = fetch_rss_articles(RSS_URL)
         if articles:
-            insert_articles_and_content_to_db(articles)
-            print("Les articles et leur contenu ont été insérés ou mis à jour avec succès.")
+            insert_articles_to_db(articles)
+            print("Les articles ont été insérés ou mis à jour avec succès.")
         else:
             print("Aucun article trouvé dans le flux RSS.")
     except Exception as e:
