@@ -20,19 +20,19 @@ def delete_anomalies():
         if connection.is_connected():
             cursor = connection.cursor()
 
-            # Sélection explicite de la base de données (utiliser DATANAME ici)
+            # Sélection explicite de la base de données
             cursor.execute(f"USE {os.getenv('DB_NAME')}")
 
-            # Supprimer les articles avec des champs critiques manquants
+            # Suppression des articles avec des champs critiques manquants
             print("=== Suppression des articles avec des champs critiques manquants ===")
             cursor.execute("""
                 DELETE FROM articles
-                WHERE title IS NULL OR publication_date IS NULL OR content IS NULL OR link IS NULL
+                WHERE title IS NULL OR publication_date IS NULL OR summary IS NULL OR full_content IS NULL OR author IS NULL
             """)
             rows_deleted = cursor.rowcount
             print(f"{rows_deleted} article(s) supprimé(s) pour champs manquants.")
 
-            # Supprimer les doublons (en gardant l'article au plus petit ID)
+            # Suppression des doublons (en gardant l'article au plus petit ID)
             print("\n=== Suppression des doublons ===")
             cursor.execute("""
                 DELETE a1
@@ -43,7 +43,7 @@ def delete_anomalies():
             rows_deleted = cursor.rowcount
             print(f"{rows_deleted} doublon(s) supprimé(s).")
 
-            # Supprimer les articles avec des liens invalides
+            # Suppression des articles avec des liens invalides
             print("\n=== Suppression des articles avec des liens invalides ===")
             cursor.execute("""
                 SELECT id, link
@@ -67,6 +67,15 @@ def delete_anomalies():
                 print(f"{len(invalid_links)} article(s) supprimé(s) pour liens invalides.")
             else:
                 print("Aucun lien invalide détecté.")
+
+            # Suppression des articles scientifiques avec des champs critiques manquants
+            print("\n=== Suppression des articles scientifiques avec des champs critiques manquants ===")
+            cursor.execute("""
+                DELETE FROM scientific_articles
+                WHERE title IS NULL OR publication_date IS NULL OR abstract IS NULL OR authors IS NULL
+            """)
+            rows_deleted = cursor.rowcount
+            print(f"{rows_deleted} article(s) scientifique(s) supprimé(s) pour champs manquants.")
 
             # Appliquer les changements
             connection.commit()
