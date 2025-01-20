@@ -91,7 +91,7 @@ def fetch_articles():
         title = entry.get("title", "None")
         link = entry.get("link", "")
         published_raw = entry.get("published", "")
-        summary = entry.get("summary", "No summary available")  # Extraction du summary
+        summary = entry.get("summary", "No summary available.")  # Extraction du summary
         author = entry.get("author", "Unknown")
 
         # Conversion et nettoyage de la date
