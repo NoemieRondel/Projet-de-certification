@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 import os
 from bs4 import BeautifulSoup
 import requests
+import json
 
 # Charger les variables d'environnement
 load_dotenv()
@@ -14,6 +15,11 @@ DB_HOST = os.getenv("DB_HOST")
 DB_USER = os.getenv("DB_USER")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 DB_NAME = os.getenv("DB_NAME")
+
+# Dossier pour les fichiers JSON
+JSON_OUTPUT_DIR = "articles_outputs"
+os.makedirs(JSON_OUTPUT_DIR, exist_ok=True)
+JSON_OUTPUT_FILE = os.path.join(JSON_OUTPUT_DIR, "venturebeat_articles.json")
 
 
 # Connexion à la base de données
@@ -30,6 +36,29 @@ def connect_to_database():
     except mysql.connector.Error as err:
         print(f"Erreur de connexion : {err}")
         return None
+
+
+# Charger ou initialiser les données JSON
+def load_json_data():
+    if os.path.exists(JSON_OUTPUT_FILE):
+        with open(JSON_OUTPUT_FILE, "r", encoding="utf-8") as file:
+            return json.load(file)
+    return []
+
+
+# Sauvegarder les articles dans le fichier JSON
+def save_to_json(articles):
+    existing_data = load_json_data()
+    existing_links = {article["link"] for article in existing_data}
+
+    # Ajouter uniquement les nouveaux articles
+    new_articles = [article for article in articles if article["link"] not in existing_links]
+    existing_data.extend(new_articles)
+
+    # Écrire les données mises à jour dans le fichier
+    with open(JSON_OUTPUT_FILE, "w", encoding="utf-8") as file:
+        json.dump(existing_data, file, ensure_ascii=False, indent=4)
+    print(f"{len(new_articles)} nouveaux articles ajoutés au fichier JSON.")
 
 
 # Fonction pour valider et formater la date
@@ -88,6 +117,7 @@ def process_feed(feed_url, connection):
         return
 
     cursor = connection.cursor()
+    articles_to_save = []
     for entry in feed.entries:
         title = entry.title
         link = entry.link
@@ -104,6 +134,17 @@ def process_feed(feed_url, connection):
 
         # Récupérer le contenu complet de l'article
         full_content = fetch_full_content(link)
+
+        article = {
+            "title": title,
+            "source": "VentureBeat",
+            "publication_date": publication_date.isoformat() if publication_date else None,
+            "summary": summary,
+            "full_content": full_content,
+            "language": "english",
+            "link": link,
+            "author": author
+        }
 
         # Vérifier si l'article existe déjà dans la base de données
         cursor.execute("SELECT COUNT(*) FROM articles WHERE link = %s", (link,))
@@ -133,7 +174,7 @@ def process_feed(feed_url, connection):
                 link
             ))
         else:
-            print(f"Insertion de l'article '{title}' dans la base de données...")
+            print(f"Insertion de l'article '{title}' dans la base de données")
             insert_query = """
                 INSERT INTO articles (title, source, publication_date, summary, full_content, language, link, author)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
@@ -149,9 +190,15 @@ def process_feed(feed_url, connection):
                 author
             ))
 
+        # Ajouter l'article à la liste pour le JSON
+        articles_to_save.append(article)
+
     connection.commit()
     print(f"Traitement du flux RSS '{feed_url}' terminé.")
     cursor.close()
+
+    # Enregistrer les articles dans le fichier JSON
+    save_to_json(articles_to_save)
 
 
 # Fonction principale

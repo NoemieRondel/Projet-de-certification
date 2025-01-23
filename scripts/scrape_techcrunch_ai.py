@@ -1,20 +1,10 @@
 import os
-import mysql.connector
+import json
 import feedparser
 from datetime import datetime
-from dotenv import load_dotenv
 from bs4 import BeautifulSoup
 import re
 import requests
-
-# Charger les variables d'environnement
-load_dotenv()
-
-# Configuration de la base de données
-DB_HOST = os.getenv("DB_HOST")
-DB_USER = os.getenv("DB_USER")
-DB_PASSWORD = os.getenv("DB_PASSWORD")
-DB_NAME = os.getenv("DB_NAME")
 
 # URL du flux RSS
 RSS_URL = "https://techcrunch.com/feed/"
@@ -22,6 +12,30 @@ RSS_URL = "https://techcrunch.com/feed/"
 # Mots-clés pour filtrer les articles pertinents
 KEYWORDS = ["AI", "artificial intelligence", "machine learning",
             "neural networks", "deep learning"]
+
+# Dossier pour les fichiers JSON
+JSON_OUTPUT_DIR = "articles_outputs"
+os.makedirs(JSON_OUTPUT_DIR, exist_ok=True)
+JSON_OUTPUT_FILE = os.path.join(JSON_OUTPUT_DIR, "techcrunch_articles.json")
+
+
+def load_existing_articles():
+    """Charge les articles existants depuis le fichier JSON."""
+    if os.path.exists(JSON_OUTPUT_FILE):
+        with open(JSON_OUTPUT_FILE, "r", encoding="utf-8") as file:
+            return json.load(file)
+    return []
+
+
+def save_articles_to_json(articles):
+    """Enregistre les articles dans un fichier JSON."""
+    print(f"Enregistrement des articles dans le fichier JSON : {JSON_OUTPUT_FILE}")
+    try:
+        with open(JSON_OUTPUT_FILE, "w", encoding="utf-8") as file:
+            json.dump(articles, file, indent=4, ensure_ascii=False, default=str)
+        print("Articles enregistrés avec succès dans le fichier JSON.")
+    except Exception as e:
+        print(f"Erreur lors de l'enregistrement dans le fichier JSON : {e}")
 
 
 def is_relevant(entry):
@@ -117,60 +131,24 @@ def fetch_articles():
     return articles
 
 
-def insert_articles_to_db(articles):
-    """Insère ou met à jour les articles dans la base de données."""
-    print("Insertion des articles dans la base de données...")
-
-    connection = None
-    try:
-        connection = mysql.connector.connect(
-            host=DB_HOST,
-            user=DB_USER,
-            password=DB_PASSWORD,
-            database=DB_NAME
-        )
-        cursor = connection.cursor()
-
-        for article in articles:
-            try:
-                # Requête d'insertion avec mise à jour
-                query = """
-                INSERT INTO articles (title, link, publication_date, summary, full_content, language, source, author)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                ON DUPLICATE KEY UPDATE
-                summary = VALUES(summary),
-                full_content = VALUES(full_content),
-                publication_date = VALUES(publication_date),
-                author = VALUES(author);
-                """
-                cursor.execute(query, (
-                    article["title"],
-                    article["link"],
-                    article["published_date"],
-                    article["summary"],
-                    article["full_content"],
-                    article["language"],
-                    article["source"],
-                    article["author"]
-                ))
-                connection.commit()
-            except mysql.connector.Error as err:
-                print(f"Erreur lors de l'insertion de l'article : {err}")
-                print(f"Données de l'article : {article}")
-
-    except mysql.connector.Error as err:
-        print(f"Erreur de connexion à la base de données : {err}")
-    finally:
-        if connection:
-            connection.close()
-
-
 def main():
-    articles = fetch_articles()
-    if articles:
-        insert_articles_to_db(articles)
-    else:
-        print("Aucun article pertinent à insérer.")
+    # Charger les articles existants
+    existing_articles = load_existing_articles()
+    existing_links = {article["link"] for article in existing_articles}
+
+    # Récupérer les nouveaux articles
+    new_articles = fetch_articles()
+
+    # Filtrer les articles déjà présents
+    unique_articles = [article for article in new_articles if article["link"] not in existing_links]
+
+    # Ajouter les nouveaux articles uniques à la liste existante
+    existing_articles.extend(unique_articles)
+
+    # Sauvegarder les articles combinés
+    save_articles_to_json(existing_articles)
+
+    print(f"Nombre d'articles ajoutés : {len(unique_articles)}")
 
 
 if __name__ == "__main__":

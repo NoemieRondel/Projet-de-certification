@@ -1,23 +1,20 @@
 import os
-import mysql.connector
-from datetime import datetime
+import json
 import feedparser
+from datetime import datetime
 from dotenv import load_dotenv
 from bs4 import BeautifulSoup
 
 # Charger les variables d'environnement
 load_dotenv()
 
-# Configuration de la base de données
-db_config = {
-    "host": os.getenv("DB_HOST"),
-    "user": os.getenv("DB_USER"),
-    "password": os.getenv("DB_PASSWORD"),
-    "database": os.getenv("DB_NAME")
-}
-
 # URL du flux RSS
 RSS_URL = "https://techcommunity.microsoft.com/t5/s/gxcuf89792/rss/Category?category.id=AI"
+
+# Dossier pour les fichiers JSON
+JSON_OUTPUT_DIR = "articles_outputs"
+os.makedirs(JSON_OUTPUT_DIR, exist_ok=True)
+JSON_OUTPUT_FILE = os.path.join(JSON_OUTPUT_DIR, "techcommunity_articles.json")
 
 
 # Fonction pour récupérer les articles depuis un flux RSS
@@ -33,7 +30,8 @@ def fetch_rss_articles(rss_url):
         article = {
             "title": entry.title,
             "author": entry.author if 'author' in entry else None,
-            "publication_date": datetime(*entry.published_parsed[:6]) if 'published_parsed' in entry else None,
+            "publication_date": datetime(*entry.published_parsed[:6]).strftime("%Y-%m-%d")
+            if 'published_parsed' in entry else None,
             "language": "english",
             "link": entry.link,
             "source": "Tech Community Microsoft",
@@ -50,40 +48,29 @@ def clean_html(html_content):
     return soup.get_text(strip=True)
 
 
-# Fonction pour insérer ou mettre à jour les articles dans la base de données
-def insert_articles_to_db(articles):
-    # Connexion à la base de données
-    conn = mysql.connector.connect(**db_config)
-    cursor = conn.cursor()
+# Fonction pour sauvegarder les articles en JSON avec dédoublonnage
+def save_articles_to_json(articles, json_file):
+    try:
+        # Charger les données existantes ou initialiser une liste vide
+        existing_data = []
+        if os.path.exists(json_file):
+            with open(json_file, "r", encoding="utf-8") as file:
+                existing_data = json.load(file)
 
-    # Requête SQL pour insérer ou mettre à jour les articles
-    insert_article = """
-        INSERT INTO articles (title, author, publication_date, language, link, source, full_content)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
-        ON DUPLICATE KEY UPDATE
-            title = VALUES(title),
-            author = VALUES(author),
-            publication_date = VALUES(publication_date),
-            source = VALUES(source),
-            full_content = VALUES(full_content)
-    """
+        # Indexer les articles existants par leurs liens pour éviter les doublons
+        existing_links = {article["link"] for article in existing_data}
 
-    # Parcours des articles
-    for article in articles:
-        cursor.execute(insert_article, (
-            article["title"],
-            article["author"],
-            article["publication_date"],
-            article["language"],
-            article["link"],
-            article["source"],
-            article["full_content"]
-        ))
+        # Ajouter uniquement les nouveaux articles
+        new_articles = [article for article in articles if article["link"] not in existing_links]
+        existing_data.extend(new_articles)
 
-    # Commit et fermeture de la connexion
-    conn.commit()
-    cursor.close()
-    conn.close()
+        # Sauvegarder dans le fichier JSON
+        with open(json_file, "w", encoding="utf-8") as file:
+            json.dump(existing_data, file, indent=4)
+
+        print(f"{len(new_articles)} nouveaux articles ajoutés à {json_file}.")
+    except Exception as e:
+        print(f"Erreur lors de la sauvegarde des articles en JSON : {e}")
 
 
 # Exemple d'utilisation
@@ -91,8 +78,8 @@ if __name__ == "__main__":
     try:
         articles = fetch_rss_articles(RSS_URL)
         if articles:
-            insert_articles_to_db(articles)
-            print("Les articles ont été insérés ou mis à jour avec succès.")
+            save_articles_to_json(articles, JSON_OUTPUT_FILE)
+            print("Les articles ont été traités avec succès.")
         else:
             print("Aucun article trouvé dans le flux RSS.")
     except Exception as e:

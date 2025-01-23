@@ -1,11 +1,11 @@
 import os
 import requests
 from bs4 import BeautifulSoup
-import mysql.connector
 import feedparser
 from datetime import datetime
 from dotenv import load_dotenv
 import re
+import json
 
 # Charger les variables d'environnement
 load_dotenv()
@@ -20,17 +20,13 @@ DB_NAME = os.getenv("DB_NAME")
 RSS_URL = "https://www.theverge.com/rss/index.xml"
 
 # Mots-clés pour filtrer les articles pertinents
-KEYWORDS = ["AI", "artificial intelligence", "machine learning", "neural networks", "deep learning"]
+KEYWORDS = ["AI", "artificial intelligence", "machine learning",
+            "neural networks", "deep learning"]
 
-
-def connect_db():
-    """Connexion à la base de données MySQL."""
-    return mysql.connector.connect(
-        host=DB_HOST,
-        user=DB_USER,
-        password=DB_PASSWORD,
-        database=DB_NAME
-    )
+# Dossier pour les fichiers JSON
+JSON_OUTPUT_DIR = "articles_outputs"
+os.makedirs(JSON_OUTPUT_DIR, exist_ok=True)
+JSON_OUTPUT_FILE = os.path.join(JSON_OUTPUT_DIR, "theverge_articles.json")
 
 
 def is_relevant(entry):
@@ -91,7 +87,7 @@ def fetch_articles():
         title = entry.get("title", "None")
         link = entry.get("link", "")
         published_raw = entry.get("published", "")
-        summary = entry.get("summary", "No summary available.")  # Extraction du summary
+        summary = entry.get("summary", "No summary available.")
         author = entry.get("author", "Unknown")
 
         # Conversion et nettoyage de la date
@@ -103,12 +99,12 @@ def fetch_articles():
 
         # Vérification de la pertinence
         if is_relevant(entry):
-            full_content = fetch_theverge_content(link)  # Récupération du contenu complet
+            full_content = fetch_theverge_content(link)
             articles.append({
                 "title": title,
                 "link": link,
                 "published_date": published_date,
-                "summary": clean_content(summary),  # Nettoyage du summary si nécessaire
+                "summary": clean_content(summary),
                 "full_content": full_content,
                 "language": "english",
                 "source": "The Verge",
@@ -119,56 +115,40 @@ def fetch_articles():
     return articles
 
 
-def insert_articles_to_db(articles):
-    """Insère ou met à jour les articles dans la base de données."""
-    print("Insertion des articles dans la base de données...")
-
-    connection = None
+def save_articles_to_json(articles):
+    """Sauvegarde les articles dans un fichier JSON."""
+    print(f"Sauvegarde des articles dans le fichier JSON : {JSON_OUTPUT_FILE}")
     try:
-        connection = connect_db()
-        cursor = connection.cursor()
+        # Charger les articles existants s'il y en a
+        if os.path.exists(JSON_OUTPUT_FILE):
+            with open(JSON_OUTPUT_FILE, "r") as file:
+                existing_data = json.load(file)
+        else:
+            existing_data = []
 
-        for article in articles:
-            try:
-                # Requête d'insertion avec mise à jour
-                query = """
-                INSERT INTO articles (title, link, publication_date, summary, full_content, language, source, author)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                ON DUPLICATE KEY UPDATE
-                summary = VALUES(summary),
-                full_content = VALUES(full_content),
-                publication_date = VALUES(publication_date),
-                source = VALUES(source),
-                author = VALUES(author);
-                """
-                cursor.execute(query, (
-                    article["title"],
-                    article["link"],
-                    article["published_date"],
-                    article["summary"],
-                    article["full_content"],
-                    article["language"],
-                    article["source"],
-                    article["author"]
-                ))
-                connection.commit()
-            except mysql.connector.Error as err:
-                print(f"Erreur lors de l'insertion de l'article : {err}")
-                print(f"Article data: {article}")
+        # Indexer les articles existants par leurs liens pour éviter les doublons
+        existing_links = {article["link"] for article in existing_data}
 
-    except mysql.connector.Error as err:
-        print(f"Erreur de connexion à la base de données : {err}")
-    finally:
-        if connection:
-            connection.close()
+        # Ajouter uniquement les nouveaux articles
+        new_articles = [article for article in articles if article["link"] not in existing_links]
+
+        # Ajouter les nouveaux articles à la liste existante
+        existing_data.extend(new_articles)
+
+        # Écrire dans le fichier JSON
+        with open(JSON_OUTPUT_FILE, "w") as file:
+            json.dump(existing_data, file, indent=4, default=str)
+        print(f"{len(new_articles)} articles nouveaux ont été sauvegardés avec succès dans le fichier JSON.")
+    except Exception as e:
+        print(f"Erreur lors de la sauvegarde dans le fichier JSON : {e}")
 
 
 def main():
     articles = fetch_articles()
     if articles:
-        insert_articles_to_db(articles)
+        save_articles_to_json(articles)  # Sauvegarde des articles dans un JSON
     else:
-        print("Aucun article pertinent à insérer.")
+        print("Aucun article pertinent à sauvegarder.")
 
 
 if __name__ == "__main__":

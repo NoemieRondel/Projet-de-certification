@@ -2,75 +2,41 @@ import os
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
-import mysql.connector
-from dotenv import load_dotenv
 import time
-
-# Charger les variables d'environnement
-load_dotenv()
-
-# Configuration de la base de données
-DB_CONFIG = {
-    "host": os.getenv("DB_HOST"),
-    "user": os.getenv("DB_USER"),
-    "password": os.getenv("DB_PASSWORD"),
-    "database": os.getenv("DB_NAME"),
-}
+import json
 
 # URL du flux RSS
 RSS_URL = "https://ai-watch.ec.europa.eu/node/2/rss_en"
 
+# Dossier pour les fichiers JSON
+JSON_OUTPUT_DIR = "articles_outputs"
+os.makedirs(JSON_OUTPUT_DIR, exist_ok=True)
+JSON_OUTPUT_FILE = os.path.join(JSON_OUTPUT_DIR, "aiwatch_articles.json")
 
-def connect_db():
-    """Connexion à la base de données MySQL."""
-    return mysql.connector.connect(**DB_CONFIG)
 
-
-def save_to_db(article_data):
+def load_existing_articles():
     """
-    Enregistre ou met à jour les données d'un article dans la base de données.
+    Charge les articles existants depuis le fichier JSON.
     """
-    query = """
-        INSERT INTO articles (
-            title,
-            source,
-            publication_date,
-            link,
-            author,
-            summary,
-            full_content,
-            language
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        ON DUPLICATE KEY UPDATE
-            title = VALUES(title),
-            source = VALUES(source),
-            publication_date = VALUES(publication_date),
-            author = VALUES(author),
-            summary = VALUES(summary),
-            full_content = VALUES(full_content),
-            language = VALUES(language);
+    if os.path.exists(JSON_OUTPUT_FILE):
+        try:
+            with open(JSON_OUTPUT_FILE, "r", encoding="utf-8") as json_file:
+                return json.load(json_file)
+        except (IOError, json.JSONDecodeError):
+            print("Erreur lors du chargement des articles existants.")
+    return []
+
+
+def save_to_json(articles):
+    """
+    Sauvegarde les articles dans un fichier JSON.
     """
     try:
-        conn = connect_db()
-        cursor = conn.cursor()
-        cursor.execute(query, (
-            article_data["title"],
-            article_data["source"],
-            article_data["publication_date"],
-            article_data["link"],
-            article_data["author"],
-            article_data["summary"],
-            article_data["full_content"],
-            article_data["language"],
-        ))
-        conn.commit()
-        print(f"Article inséré/mis à jour : {article_data['title']}")
-    except mysql.connector.Error as err:
-        print(f"Erreur MySQL : {err}")
-    finally:
-        if conn.is_connected():
-            cursor.close()
-            conn.close()
+        with open(JSON_OUTPUT_FILE, "w", encoding="utf-8") as json_file:
+            json.dump(articles, json_file, indent=4, ensure_ascii=False)
+        print(f"Articles sauvegardés dans {JSON_OUTPUT_FILE}.")
+    except IOError as e:
+        print(f"Erreur lors de l'écriture du fichier JSON : {e}")
 
 
 def fetch_full_content(url):
@@ -83,7 +49,7 @@ def fetch_full_content(url):
         }
         response = requests.get(url, headers=headers)
 
-        if response.status_code == 429:  # Trop de requêtes
+        if response.status_code == 429:
             print("Trop de requêtes ! Pause de 60 secondes.")
             time.sleep(60)
             return fetch_full_content(url)
@@ -99,26 +65,34 @@ def fetch_full_content(url):
         paragraphs = [p.get_text(strip=True) for p in article_body.find_all("p")]
         return "\n".join(paragraphs) if paragraphs else None
     except requests.exceptions.RequestException as e:
-        print(f"Erreur lors de la récupération du contenu de l'article {url} : {e}")
+        print(f"Erreur lors de la récupération de l'article {url} : {e}")
         return None
 
 
-def scrape_rss_feed():
+def parse_rss_feed():
     """
     Scrape les articles à partir du flux RSS.
     """
+    articles = []
     try:
         response = requests.get(RSS_URL)
-        if response.status_code != 200:
-            print(f"Erreur HTTP : {response.status_code}")
-            return
-
+        response.raise_for_status()
         soup = BeautifulSoup(response.content, "xml")
         items = soup.find_all("item")
+
+        # Charger les articles existants
+        existing_articles = load_existing_articles()
+        existing_links = {article["link"] for article in existing_articles}
 
         for item in items:
             title = item.find("title").text.strip() if item.find("title") else "No title"
             link = item.find("link").text.strip() if item.find("link") else None
+
+            # Éviter les doublons
+            if link in existing_links:
+                print(f"Article déjà existant, ignoré : {title}")
+                continue
+
             summary = item.find("description").text.strip() if item.find("description") else "No summary available."
             if summary != "No summary available.":
                 summary = BeautifulSoup(summary, "html.parser").get_text().strip()
@@ -151,13 +125,21 @@ def scrape_rss_feed():
                 "language": language,
             }
 
-            # Sauvegarder dans la base de données
-            save_to_db(article_data)
+            # Ajouter l'article à la liste
+            articles.append(article_data)
+            existing_links.add(link)  # Ajouter le lien à l'ensemble pour éviter les doublons
+            print(f"Article ajouté : {title}")
             time.sleep(2)  # Pause pour éviter trop de requêtes rapides
+
+        # Fusionner les articles existants et les nouveaux
+        all_articles = existing_articles + articles
+
+        # Sauvegarder tous les articles dans un fichier JSON
+        save_to_json(all_articles)
+
     except Exception as e:
         print(f"Erreur lors du scraping du flux RSS : {e}")
 
 
 if __name__ == "__main__":
-    # Lancer le scraping
-    scrape_rss_feed()
+    parse_rss_feed()
