@@ -1,45 +1,51 @@
 import os
 import json
 
-# Chemins vers les dossiers contenant les JSON
-ARTICLES_FOLDER = "articles_output"
-VIDEOS_FOLDER = "videos_output"
+# Définir les chemins vers les dossiers des fichiers JSON
+ARTICLES_FOLDER = "articles_outputs"
+VIDEOS_FOLDER = "videos_outputs"
 
-# Fichiers JSON finaux
-FINAL_ARTICLES_JSON = "outputs/final_articles.json"
-FINAL_VIDEOS_JSON = "outputs/final_videos.json"
+# Définir les chemins des fichiers JSON finaux
+FINAL_ARTICLES_FILE = "articles.json"
+FINAL_VIDEOS_FILE = "videos.json"
 
 
-def merge_json_files(input_folder, output_file):
-    merged_data = []
+def merge_and_deduplicate_json_files(input_folder, output_file, unique_key):
+    all_data = []
+    seen_keys = set()  # Ensemble pour stocker les clés uniques déjà rencontrées
 
-    # Parcourir tous les fichiers JSON du dossier
-    for filename in os.listdir(input_folder):
-        if filename.endswith(".json"):
-            file_path = os.path.join(input_folder, filename)
-    
+    # Parcourir tous les fichiers JSON dans le dossier
+    for file_name in os.listdir(input_folder):
+        file_path = os.path.join(input_folder, file_name)
+        if file_name.endswith(".json"):
             try:
                 # Charger les données JSON
-                with open(file_path, "r", encoding="utf-8") as json_file:
-                    data = json.load(json_file)
+                with open(file_path, "r", encoding="utf-8") as file:
+                    data = json.load(file)
+
+                    # Vérifier que les données sont une liste
                     if isinstance(data, list):
-                        merged_data.extend(data)
+                        for item in data:
+                            # Vérifier si la clé unique existe et est nouvelle
+                            key_value = item.get(unique_key)
+                            if key_value and key_value not in seen_keys:
+                                all_data.append(item)
+                                seen_keys.add(key_value)
                     else:
-                        print(f"Le fichier {filename} ne contient pas une liste.")
-            except Exception as e:
-                print(f"Erreur lors du chargement de {filename} : {e}")
-    
-    # Écrire les données fusionnées dans le fichier final
-    try:
-        with open(output_file, "w", encoding="utf-8") as output_json:
-            json.dump(merged_data, output_json, indent=4, ensure_ascii=False)
-        print(f"Données fusionnées dans {output_file}.")
-    except Exception as e:
-        print(f"Erreur lors de l'écriture dans {output_file} : {e}")
+                        print(f"Le fichier {file_name} ne contient pas une liste. Ignoré.")
+            except json.JSONDecodeError:
+                print(f"Erreur lors du chargement du fichier {file_name}. Ignoré.")
 
+    # Sauvegarder les données fusionnées et dédoublonnées dans un nouveau fichier JSON
+    with open(output_file, "w", encoding="utf-8") as output:
+        json.dump(all_data, output, ensure_ascii=False, indent=4)
 
-# Fusion des articles
-merge_json_files(ARTICLES_FOLDER, FINAL_ARTICLES_JSON)
+    print(f"Fusion et dédoublonnage terminés. Les données ont été sauvegardées dans {output_file}.")
 
-# Fusion des vidéos
-merge_json_files(VIDEOS_FOLDER, FINAL_VIDEOS_JSON)
+# Fusionner et dédoublonner les fichiers JSON pour les articles
+print("Fusion et dédoublonnage des fichiers JSON pour les articles...")
+merge_and_deduplicate_json_files(ARTICLES_FOLDER, FINAL_ARTICLES_FILE, unique_key="link")
+
+# Fusionner et dédoublonner les fichiers JSON pour les vidéos
+print("Fusion et dédoublonnage des fichiers JSON pour les vidéos...")
+merge_and_deduplicate_json_files(VIDEOS_FOLDER, FINAL_VIDEOS_FILE, unique_key="video_url")
