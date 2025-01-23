@@ -112,3 +112,4 @@ ALTER TABLE irrelevant_articles DROP focus_tech;
 
 
 
+
