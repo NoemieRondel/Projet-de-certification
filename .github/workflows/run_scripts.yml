@@ -1,0 +1,64 @@
+name: Daily Data Pipeline
+
+# Planification : exécution tous les jours à 20h
+on:
+  schedule:
+    - cron: '0 20 * * *' # À 20h (heure UTC, ajuste si nécessaire)
+  workflow_dispatch: # Permet aussi de lancer manuellement le workflow si besoin
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+    # 1. Vérification du code source
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    # 2. Installation de Python
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.10
+
+    # 3. Installation des dépendances
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    # 4. Lancer le scraping
+    - name: Run scraping scripts
+      run: |
+        python scripts/scrape_aiwatch_eu.py
+        python scripts/scrape_azure_ai.py
+        python scripts/scrape_digital_strategy_eu_ai.py
+        python scripts/scrape_mit_technology_review_ai.py
+        python scripts/scrape_techcommunity_ai.py
+        python scripts/scrape_techcrunch_ai.py
+        python scripts/scrape_theverge_ai.py
+        python scripts/scrape_venturebeat_ai.py
+        python scripts/scrape_arxiv_ai.py
+        python scripts/scrape_anthropic_videos.py
+        python scripts/scrape_google_deepmind_videos.py
+        python scripts/scrape_microsoft_azure_videos.py
+        python scripts/scrape_mistral_videos.py
+        python scripts/scrape_openai_videos.py
+      continue-on-error: true  # Continue même si l'un des scripts échoue
+
+    # 5. Réunir les JSON dans deux fichiers
+    - name: Combine JSON files
+      run: python scripts/generate_json.py
+
+    # 6. Générer les résumés
+    - name: Generate summaries
+      run: python scripts/generate_summaries.py
+
+    # 7. Générer les mots-clés pour les articles
+    - name: Generate keywords for articles
+      run: python scripts/generate_keywords.py
+
+    # 8. Générer les mots-clés pour les articles scientifiques
+    - name: Generate keywords for scientific articles
+      run: python scripts/generate_keywords_scientific_articles.py
+      if: ${{ steps.scrape_arxiv_ai.outcome != 'failure' }}  # Si le script arxiv n'a pas échoué, continuer l'étape 8
