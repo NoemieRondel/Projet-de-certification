@@ -1,8 +1,13 @@
 import os
 import json
+import logging
 from sentence_transformers import SentenceTransformer, util
 
+# Configuration du logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 # Charger le modèle pré-entraîné pour la similarité sémantique
+logging.info("Chargement du modèle pré-entraîné pour la similarité sémantique.")
 model = SentenceTransformer('all-MiniLM-L6-v2')
 
 # Liste fusionnée des mots-clés (techniques et généralistes)
@@ -56,6 +61,7 @@ keyword_list = [
 
 
 # Embedding des mots-clés pour comparaison
+logging.info("Encodage des mots-clés pour la comparaison.")
 keyword_embeddings = model.encode(keyword_list, convert_to_tensor=True)
 
 # Limite des mots-clés et seuil de similarité
@@ -69,6 +75,7 @@ def extract_keywords(text, embeddings, candidates, threshold):
         return ""
 
     # Encodage du texte et calcul de la similarité
+    logging.info("Encodage du texte et calcul de la similarité.")
     text_embedding = model.encode(text, convert_to_tensor=True)
     cosine_scores = util.cos_sim(text_embedding, embeddings)[0]
 
@@ -87,20 +94,22 @@ json_file_path = "articles.json"
 
 # Charger les données depuis le fichier JSON
 if os.path.exists(json_file_path):
+    logging.info(f"Chargement des données depuis {json_file_path}.")
     with open(json_file_path, "r", encoding="utf-8") as file:
         articles = json.load(file)
 else:
-    print("Le fichier articles.json est introuvable.")
+    logging.error(f"Le fichier {json_file_path} est introuvable.")
     articles = []
 
 # Enrichissement des mots-clés pour chaque article
+logging.info("Enrichissement des mots-clés pour chaque article.")
 for article in articles:
     full_content = article.get("full_content", "")
     current_keywords = article.get("keywords", "")
 
     # Vérifier si les mots-clés doivent être générés (champ vide ou inexistant)
     if not current_keywords:
-        print(f"Traitement de l'article : {article.get('title', 'Sans titre')}")
+        logging.info(f"Traitement de l'article : {article.get('title', 'Sans titre')}")
 
         # Extraire les mots-clés à partir du contenu complet
         new_keywords = extract_keywords(full_content, keyword_embeddings, keyword_list, SIMILARITY_THRESHOLD)
@@ -109,7 +118,8 @@ for article in articles:
         article["keywords"] = ";".join(sorted(set(new_keywords)))
 
 # Sauvegarder les données mises à jour dans le fichier JSON
+logging.info(f"Sauvegarde des données mises à jour dans {json_file_path}.")
 with open(json_file_path, "w", encoding="utf-8") as file:
     json.dump(articles, file, indent=4, ensure_ascii=False)
 
-print("Enrichissement des mots-clés terminé. Fichier JSON mis à jour.")
+logging.info("Enrichissement des mots-clés terminé. Fichier JSON mis à jour.")

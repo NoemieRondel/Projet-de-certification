@@ -1,15 +1,21 @@
 import json
+import logging
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
 # Configurer le modèle Hugging Face
 MODEL_NAME = "facebook/bart-large-cnn"  # Modèle de summarization
-print("Chargement du modèle Hugging Face...")
+
+# Configurer le logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+logging.info("Chargement du modèle Hugging Face...")
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME)
 
 
 # Fonction pour générer un résumé
 def generate_summary(content, max_length=200, min_length=50):
+    logging.info("Début de la génération du résumé.")
     # Tokenization avec tronçonnage
     inputs = tokenizer(
         content,
@@ -27,28 +33,37 @@ def generate_summary(content, max_length=200, min_length=50):
         num_beams=4,
         early_stopping=True
     )
-    return tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+    summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+    logging.info("Résumé généré avec succès.")
+    return summary
 
 
 # Fonction principale
 def main():
     # Charger les articles depuis le fichier JSON
-    with open("articles.json", "r", encoding="utf-8") as file:
-        articles = json.load(file)
-
-    print(f"{len(articles)} articles chargés depuis articles.json.")
+    try:
+        with open("articles.json", "r", encoding="utf-8") as file:
+            articles = json.load(file)
+        logging.info(f"{len(articles)} articles chargés depuis articles.json.")
+    except FileNotFoundError:
+        logging.error("Le fichier articles.json est introuvable.")
+        return
+    except json.JSONDecodeError:
+        logging.error("Erreur lors du chargement du fichier articles.json.")
+        return
 
     for article in articles:
         # Vérifier si le résumé doit être généré
         if article.get("summary") not in [None, "", "No summary available."]:
+            logging.info(f"Résumé déjà existant pour l'article '{article.get('title', 'Sans titre')}', passage au suivant.")
             continue  # Passer les articles ayant déjà un résumé valide
 
         full_content = article.get("full_content", "")
         if not full_content.strip():
-            print(f"L'article '{article.get('title', 'Sans titre')}' n'a pas de contenu, ignoré.")
+            logging.warning(f"L'article '{article.get('title', 'Sans titre')}' n'a pas de contenu, ignoré.")
             continue
 
-        print(f"Génération du résumé pour l'article '{article.get('title', 'Sans titre')}'...")
+        logging.info(f"Génération du résumé pour l'article '{article.get('title', 'Sans titre')}'...")
 
         try:
             # Déterminer la longueur du résumé dynamiquement
@@ -66,16 +81,18 @@ def main():
             # Mettre à jour l'article avec le résumé généré
             article["summary"] = summary
 
-            print(f"Résumé généré pour l'article '{article.get('title', 'Sans titre')}'.")
+            logging.info(f"Résumé généré pour l'article '{article.get('title', 'Sans titre')}'.")
 
         except Exception as e:
-            print(f"Erreur lors de la génération du résumé pour l'article '{article.get('title', 'Sans titre')}': {e}")
+            logging.error(f"Erreur lors de la génération du résumé pour l'article '{article.get('title', 'Sans titre')}': {e}")
 
     # Sauvegarder les articles mis à jour dans le fichier JSON
-    with open("articles.json", "w", encoding="utf-8") as file:
-        json.dump(articles, file, ensure_ascii=False, indent=4)
-
-    print("Traitement terminé. Fichier articles.json mis à jour.")
+    try:
+        with open("articles.json", "w", encoding="utf-8") as file:
+            json.dump(articles, file, ensure_ascii=False, indent=4)
+        logging.info("Traitement terminé. Fichier articles.json mis à jour.")
+    except Exception as e:
+        logging.error(f"Erreur lors de la sauvegarde des articles mis à jour dans articles.json: {e}")
 
 
 if __name__ == "__main__":
