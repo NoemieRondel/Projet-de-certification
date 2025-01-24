@@ -1,25 +1,6 @@
 import os
-import mysql.connector
+import json
 from sentence_transformers import SentenceTransformer, util
-from dotenv import load_dotenv
-
-# Charger les variables d'environnement
-load_dotenv()
-
-# Configuration de la connexion à la base de données
-DB_HOST = os.getenv("DB_HOST")
-DB_USER = os.getenv("DB_USER")
-DB_PASSWORD = os.getenv("DB_PASSWORD")
-DB_NAME = os.getenv("DB_NAME")
-
-# Connexion à la base de données
-connection = mysql.connector.connect(
-    host=DB_HOST,
-    user=DB_USER,
-    password=DB_PASSWORD,
-    database=DB_NAME
-)
-cursor = connection.cursor()
 
 # Charger le modèle pré-entraîné pour la similarité sémantique
 model = SentenceTransformer('all-MiniLM-L6-v2')
@@ -73,6 +54,7 @@ keyword_list = [
     "Transferability Testing"
 ]
 
+
 # Embedding des mots-clés pour comparaison
 keyword_embeddings = model.encode(keyword_list, convert_to_tensor=True)
 
@@ -100,42 +82,34 @@ def extract_keywords(text, embeddings, candidates, threshold):
     return sorted_terms[:MAX_KEYWORDS]
 
 
-# Récupérer les articles dans la base de données
-select_query = """
-    SELECT id, full_content, summary, keywords
-    FROM articles
-    WHERE full_content IS NOT NULL
-"""
-cursor.execute(select_query)
-rows = cursor.fetchall()
+# Chemin du fichier JSON
+json_file_path = "articles.json"
+
+# Charger les données depuis le fichier JSON
+if os.path.exists(json_file_path):
+    with open(json_file_path, "r", encoding="utf-8") as file:
+        articles = json.load(file)
+else:
+    print("Le fichier articles.json est introuvable.")
+    articles = []
 
 # Enrichissement des mots-clés pour chaque article
-for article_id, full_content, summary, current_keywords in rows:
-    print(f"Traitement de l'article ID {article_id}...")
+for article in articles:
+    full_content = article.get("full_content", "")
+    current_keywords = article.get("keywords", "")
 
-    # Extraire les nouveaux mots-clés à partir du contenu complet ou résumé
-    new_keywords = extract_keywords(full_content + " " + summary, keyword_embeddings, keyword_list, SIMILARITY_THRESHOLD)
+    # Vérifier si les mots-clés doivent être générés (champ vide ou inexistant)
+    if not current_keywords:
+        print(f"Traitement de l'article : {article.get('title', 'Sans titre')}")
 
-    # Fusionner avec les mots-clés existants
-    if current_keywords:
-        existing_keywords = set(current_keywords.split(";"))
-    else:
-        existing_keywords = set()
+        # Extraire les mots-clés à partir du contenu complet
+        new_keywords = extract_keywords(full_content, keyword_embeddings, keyword_list, SIMILARITY_THRESHOLD)
 
-    # Ajouter les nouveaux mots-clés sans duplication
-    updated_keywords_set = existing_keywords.union(set(new_keywords))
-    updated_keywords = ";".join(sorted(updated_keywords_set))
+        # Ajouter les mots-clés au JSON
+        article["keywords"] = ";".join(sorted(set(new_keywords)))
 
-    # Mise à jour dans la base de données
-    try:
-        update_query = "UPDATE articles SET keywords = %s WHERE id = %s"
-        cursor.execute(update_query, (updated_keywords, article_id))
-    except mysql.connector.Error as e:
-        print(f"Erreur SQL pour l'article ID {article_id}: {e}")
+# Sauvegarder les données mises à jour dans le fichier JSON
+with open(json_file_path, "w", encoding="utf-8") as file:
+    json.dump(articles, file, indent=4, ensure_ascii=False)
 
-# Valider les changements et fermer la connexion
-connection.commit()
-cursor.close()
-connection.close()
-
-print("Enrichissement des mots-clés terminé. Base de données mise à jour.")
+print("Enrichissement des mots-clés terminé. Fichier JSON mis à jour.")

@@ -1,46 +1,22 @@
-import os
-import mysql.connector
-from dotenv import load_dotenv
+import json
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
-
-# Charger les variables d'environnement
-load_dotenv()
-
-DB_HOST = os.getenv("DB_HOST")
-DB_USER = os.getenv("DB_USER")
-DB_PASSWORD = os.getenv("DB_PASSWORD")
-DB_NAME = os.getenv("DB_NAME")
 
 # Configurer le modèle Hugging Face
 MODEL_NAME = "facebook/bart-large-cnn"  # Modèle de summarization
-
 print("Chargement du modèle Hugging Face...")
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME)
 
 
-# Fonction de connexion à la base de données
-def connect_db():
-    return mysql.connector.connect(
-        host=DB_HOST,
-        user=DB_USER,
-        password=DB_PASSWORD,
-        database=DB_NAME
-    )
-
-
 # Fonction pour générer un résumé
-def generate_summary(article_text, max_length=200, min_length=50):
+def generate_summary(content, max_length=200, min_length=50):
     # Tokenization avec tronçonnage
     inputs = tokenizer(
-        article_text,
+        content,
         return_tensors="pt",
         truncation=True,
         max_length=1024
     )
-    
-    if inputs.input_ids.size(1) > 1024:  # Vérification pour éviter l'erreur
-        raise ValueError(f"Texte trop long après tokenization : {len(article_text)} caractères.")
 
     # Génération du résumé
     summary_ids = model.generate(
@@ -56,56 +32,50 @@ def generate_summary(article_text, max_length=200, min_length=50):
 
 # Fonction principale
 def main():
-    print("Connexion à la base de données...")
-    db = connect_db()
-    cursor = db.cursor(dictionary=True)
+    # Charger les articles depuis le fichier JSON
+    with open("articles.json", "r", encoding="utf-8") as file:
+        articles = json.load(file)
 
-    # Récupérer les articles sans résumé
-    query = """
-    SELECT id AS article_id, full_content
-    FROM articles
-    WHERE summary IS NULL OR summary = '' OR summary = 'No summary available.'
-    """
-    cursor.execute(query)
-    articles = cursor.fetchall()
-
-    print(f"{len(articles)} articles trouvés sans résumé.")
+    print(f"{len(articles)} articles chargés depuis articles.json.")
 
     for article in articles:
-        article_id = article['article_id']
-        full_content = article['full_content']
+        # Vérifier si le résumé doit être généré
+        if article.get("summary") not in [None, "", "No summary available."]:
+            continue  # Passer les articles ayant déjà un résumé valide
 
-        # Déterminer la longueur du résumé dynamiquement
-        word_count = len(full_content.split())
-        if word_count < 300:
-            max_length = 100
-        elif word_count < 1000:
-            max_length = 200
-        else:
-            max_length = 300
+        full_content = article.get("full_content", "")
+        if not full_content.strip():
+            print(f"L'article '{article.get('title', 'Sans titre')}' n'a pas de contenu, ignoré.")
+            continue
 
-        print(f"Génération du résumé pour l'article {article_id}...")
+        print(f"Génération du résumé pour l'article '{article.get('title', 'Sans titre')}'...")
 
         try:
-            # Vérification de la longueur de l'article
-            if len(full_content) > 4096:  # BART ne gère que 1024 tokens (environ 4000 caractères bruts)
-                print(f"Article {article_id} trop long, tronquons...")
-                full_content = full_content[:4000]
+            # Déterminer la longueur du résumé dynamiquement
+            word_count = len(full_content.split())
+            if word_count < 300:
+                max_length = 100
+            elif word_count < 1000:
+                max_length = 200
+            else:
+                max_length = 300
 
+            # Générer le résumé
             summary = generate_summary(full_content, max_length=max_length)
 
-            # Mettre à jour la table articles avec le résumé
-            update_query = "UPDATE articles SET summary = %s WHERE id = %s"
-            cursor.execute(update_query, (summary, article_id))
-            db.commit()
+            # Mettre à jour l'article avec le résumé généré
+            article["summary"] = summary
 
-            print(f"Résumé mis à jour pour l'article {article_id}.")
+            print(f"Résumé généré pour l'article '{article.get('title', 'Sans titre')}'.")
+
         except Exception as e:
-            print(f"Erreur lors de la génération du résumé pour l'article {article_id}: {e}")
+            print(f"Erreur lors de la génération du résumé pour l'article '{article.get('title', 'Sans titre')}': {e}")
 
-    cursor.close()
-    db.close()
-    print("Traitement terminé.")
+    # Sauvegarder les articles mis à jour dans le fichier JSON
+    with open("articles.json", "w", encoding="utf-8") as file:
+        json.dump(articles, file, ensure_ascii=False, indent=4)
+
+    print("Traitement terminé. Fichier articles.json mis à jour.")
 
 
 if __name__ == "__main__":
