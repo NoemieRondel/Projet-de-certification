@@ -5,6 +5,11 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 from urllib.parse import urljoin
+import logging
+
+# Configuration des logs
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 
 # URL de base pour Digital Strategy
 BASE_URL = "https://digital-strategy.ec.europa.eu"
@@ -20,15 +25,20 @@ def load_existing_articles():
     """Charge les articles existants depuis le fichier JSON."""
     if os.path.exists(JSON_OUTPUT_FILE):
         with open(JSON_OUTPUT_FILE, "r", encoding="utf-8") as file:
+            logger.info("Chargement des articles existants depuis le fichier JSON...")
             return json.load(file)
+    logger.info("Aucun fichier existant trouvé. Création d'un nouveau fichier.")
     return []
 
 
 def save_to_json(articles):
     """Sauvegarde les articles dans le fichier JSON."""
-    with open(JSON_OUTPUT_FILE, "w", encoding="utf-8") as file:
-        json.dump(articles, file, indent=4, ensure_ascii=False)
-    print(f"{len(articles)} articles sauvegardés dans le fichier JSON.")
+    try:
+        with open(JSON_OUTPUT_FILE, "w", encoding="utf-8") as file:
+            json.dump(articles, file, indent=4, ensure_ascii=False)
+        logger.info(f"{len(articles)} articles sauvegardés dans le fichier JSON.")
+    except Exception as e:
+        logger.error(f"Erreur lors de la sauvegarde des articles dans le fichier JSON : {e}")
 
 
 def extract_date(article):
@@ -42,7 +52,7 @@ def extract_date(article):
                     return datetime.strptime(date_str, fmt).strftime("%Y-%m-%d")
                 except ValueError:
                     continue
-            print(f"Format de date non pris en charge : {date_str}")
+            logger.warning(f"Format de date non pris en charge : {date_str}")
     return None
 
 
@@ -52,6 +62,7 @@ def fetch_digital_strategy_content(url):
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
         }
+        logger.info(f"Récupération de l'article {url}...")
         response = requests.get(url, headers=headers)
         response.raise_for_status()
 
@@ -62,18 +73,19 @@ def fetch_digital_strategy_content(url):
             paragraphs = [p.get_text(strip=True) for p in main_content.find_all("p")]
             return "\n".join(paragraphs)
         else:
-            print(f"Aucun contenu trouvé pour l'URL {url}.")
+            logger.warning(f"Aucun contenu trouvé pour l'URL {url}.")
             return None
     except requests.exceptions.RequestException as e:
-        print(f"Erreur lors de la récupération de l'article {url} : {e}")
+        logger.error(f"Erreur lors de la récupération de l'article {url} : {e}")
         return None
 
 
 def scrape_page(url):
     """Scrape les articles à partir de la page spécifiée."""
+    logger.info(f"Scraping de la page {url}...")
     response = requests.get(urljoin(BASE_URL, url))
     if response.status_code != 200:
-        print(f"Erreur HTTP : {response.status_code}")
+        logger.error(f"Erreur HTTP : {response.status_code} pour {url}")
         return []
 
     soup = BeautifulSoup(response.text, "html.parser")
@@ -113,6 +125,7 @@ def scrape_page(url):
         scraped_articles.append(article_data)
         time.sleep(2)  # Pause pour éviter de surcharger le serveur
 
+    logger.info(f"Nombre d'articles récupérés : {len(scraped_articles)}")
     return scraped_articles
 
 
@@ -120,6 +133,7 @@ if __name__ == "__main__":
     # Charger les articles existants
     existing_articles = load_existing_articles()
     existing_links = {article["link"] for article in existing_articles}
+    logger.info(f"Articles existants chargés. Nombre d'articles : {len(existing_articles)}")
 
     # Scraper les nouveaux articles
     new_articles = scrape_page(PAGE_URL)
@@ -127,10 +141,12 @@ if __name__ == "__main__":
     # Filtrer les articles déjà présents
     unique_articles = [article for article in new_articles if article["link"] not in existing_links]
 
+    logger.info(f"Nombre d'articles uniques à ajouter : {len(unique_articles)}")
+
     # Ajouter les nouveaux articles uniques à la liste existante avec `extend`
     existing_articles.extend(unique_articles)
 
     # Sauvegarder les données dans le fichier JSON
     save_to_json(existing_articles)
 
-    print(f"Nombre d'articles ajoutés : {len(unique_articles)}")
+    logger.info(f"Processus terminé. Nombre total d'articles : {len(existing_articles)}")

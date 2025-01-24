@@ -5,6 +5,10 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 import re
 import requests
+import logging
+
+# Configuration des logs
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # URL du flux RSS
 RSS_URL = "https://techcrunch.com/feed/"
@@ -23,26 +27,31 @@ def load_existing_articles():
     """Charge les articles existants depuis le fichier JSON."""
     if os.path.exists(JSON_OUTPUT_FILE):
         with open(JSON_OUTPUT_FILE, "r", encoding="utf-8") as file:
+            logging.info("Chargement des articles existants.")
             return json.load(file)
+    logging.info("Aucun fichier JSON trouvé. Aucun article existant.")
     return []
 
 
 def save_articles_to_json(articles):
     """Enregistre les articles dans un fichier JSON."""
-    print(f"Enregistrement des articles dans le fichier JSON : {JSON_OUTPUT_FILE}")
+    logging.info(f"Enregistrement des articles dans le fichier JSON : {JSON_OUTPUT_FILE}")
     try:
         with open(JSON_OUTPUT_FILE, "w", encoding="utf-8") as file:
             json.dump(articles, file, indent=4, ensure_ascii=False, default=str)
-        print("Articles enregistrés avec succès dans le fichier JSON.")
+        logging.info("Articles enregistrés avec succès dans le fichier JSON.")
     except Exception as e:
-        print(f"Erreur lors de l'enregistrement dans le fichier JSON : {e}")
+        logging.error(f"Erreur lors de l'enregistrement dans le fichier JSON : {e}")
 
 
 def is_relevant(entry):
     """Vérifie si l'article est pertinent en fonction des mots-clés."""
     title = entry.get("title", "").lower()
     content = entry.get("description", "")
-    return any(keyword.lower() in title or keyword.lower() in content for keyword in KEYWORDS)
+    relevant = any(keyword.lower() in title or keyword.lower() in content for keyword in KEYWORDS)
+    if relevant:
+        logging.info(f"Article pertinent trouvé : {title}")
+    return relevant
 
 
 def clean_content(content):
@@ -80,16 +89,17 @@ def fetch_full_content(url):
         full_content = "\n".join(content)
         return full_content if full_content else "Aucun contenu pertinent trouvé."
     except requests.exceptions.RequestException as e:
+        logging.error(f"Erreur lors de la récupération de l'article {url}: {e}")
         return f"Erreur lors de la récupération de l'article : {e}"
 
 
 def fetch_articles():
     """Récupère et traite les articles depuis le flux RSS."""
-    print("Récupération des articles depuis TechCrunch...")
+    logging.info("Récupération des articles depuis TechCrunch...")
     feed = feedparser.parse(RSS_URL)
 
     if not feed.entries:
-        print("Aucun article récupéré. Vérifiez l'URL du flux RSS.")
+        logging.warning("Aucun article récupéré. Vérifiez l'URL du flux RSS.")
         return []
 
     articles = []
@@ -111,7 +121,7 @@ def fetch_articles():
         try:
             published_date = datetime.strptime(published_raw, "%a, %d %b %Y %H:%M:%S %z").date()
         except (ValueError, TypeError):
-            print(f"Date de publication invalide : {published_raw}")
+            logging.warning(f"Date de publication invalide : {published_raw}")
 
         # Vérification de la pertinence
         if is_relevant(entry):
@@ -127,7 +137,7 @@ def fetch_articles():
                 "author": author
             })
 
-    print(f"{len(articles)} articles pertinents récupérés.")
+    logging.info(f"{len(articles)} articles pertinents récupérés.")
     return articles
 
 
@@ -148,7 +158,7 @@ def main():
     # Sauvegarder les articles combinés
     save_articles_to_json(existing_articles)
 
-    print(f"Nombre d'articles ajoutés : {len(unique_articles)}")
+    logging.info(f"Nombre d'articles ajoutés : {len(unique_articles)}")
 
 
 if __name__ == "__main__":

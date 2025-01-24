@@ -4,6 +4,11 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 import time
 import json
+import logging
+
+# Configuration du logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger()
 
 # URL du flux RSS
 RSS_URL = "https://ai-watch.ec.europa.eu/node/2/rss_en"
@@ -21,9 +26,10 @@ def load_existing_articles():
     if os.path.exists(JSON_OUTPUT_FILE):
         try:
             with open(JSON_OUTPUT_FILE, "r", encoding="utf-8") as json_file:
+                logger.info("Chargement des articles existants...")
                 return json.load(json_file)
         except (IOError, json.JSONDecodeError):
-            print("Erreur lors du chargement des articles existants.")
+            logger.error("Erreur lors du chargement des articles existants.")
     return []
 
 
@@ -34,9 +40,9 @@ def save_to_json(articles):
     try:
         with open(JSON_OUTPUT_FILE, "w", encoding="utf-8") as json_file:
             json.dump(articles, json_file, indent=4, ensure_ascii=False)
-        print(f"Articles sauvegardés dans {JSON_OUTPUT_FILE}.")
+        logger.info(f"{len(articles)} articles sauvegardés dans {JSON_OUTPUT_FILE}.")
     except IOError as e:
-        print(f"Erreur lors de l'écriture du fichier JSON : {e}")
+        logger.error(f"Erreur lors de l'écriture du fichier JSON : {e}")
 
 
 def fetch_full_content(url):
@@ -47,10 +53,11 @@ def fetch_full_content(url):
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
         }
+        logger.info(f"Récupération du contenu complet de l'article : {url}")
         response = requests.get(url, headers=headers)
 
         if response.status_code == 429:
-            print("Trop de requêtes ! Pause de 60 secondes.")
+            logger.warning("Trop de requêtes ! Pause de 60 secondes.")
             time.sleep(60)
             return fetch_full_content(url)
 
@@ -59,13 +66,13 @@ def fetch_full_content(url):
         article_body = soup.find("article")
 
         if not article_body:
-            print(f"Aucun contenu trouvé pour l'URL {url}.")
+            logger.warning(f"Aucun contenu trouvé pour l'URL {url}.")
             return None
 
         paragraphs = [p.get_text(strip=True) for p in article_body.find_all("p")]
         return "\n".join(paragraphs) if paragraphs else None
     except requests.exceptions.RequestException as e:
-        print(f"Erreur lors de la récupération de l'article {url} : {e}")
+        logger.error(f"Erreur lors de la récupération de l'article {url} : {e}")
         return None
 
 
@@ -75,6 +82,7 @@ def parse_rss_feed():
     """
     articles = []
     try:
+        logger.info(f"Scraping du flux RSS à l'URL {RSS_URL}...")
         response = requests.get(RSS_URL)
         response.raise_for_status()
         soup = BeautifulSoup(response.content, "xml")
@@ -90,7 +98,7 @@ def parse_rss_feed():
 
             # Éviter les doublons
             if link in existing_links:
-                print(f"Article déjà existant, ignoré : {title}")
+                logger.info(f"Article déjà existant, ignoré : {title}")
                 continue
 
             summary = item.find("description").text.strip() if item.find("description") else "No summary available."
@@ -102,7 +110,7 @@ def parse_rss_feed():
                 try:
                     pub_date = datetime.strptime(pub_date, "%a, %d %b %Y %H:%M:%S %z").strftime("%Y-%m-%d")
                 except ValueError as e:
-                    print(f"Erreur lors de la conversion de la date : {e}")
+                    logger.error(f"Erreur lors de la conversion de la date : {e}")
                     pub_date = None
 
             # Champs fixes
@@ -128,17 +136,17 @@ def parse_rss_feed():
             # Ajouter l'article à la liste
             articles.append(article_data)
             existing_links.add(link)  # Ajouter le lien à l'ensemble pour éviter les doublons
-            print(f"Article ajouté : {title}")
+            logger.info(f"Article ajouté : {title}")
             time.sleep(2)  # Pause pour éviter trop de requêtes rapides
 
         # Fusionner les articles existants et les nouveaux
-        all_articles = existing_articles + articles
+        existing_articles.extend(articles)
 
         # Sauvegarder tous les articles dans un fichier JSON
-        save_to_json(all_articles)
+        save_to_json(existing_articles)
 
     except Exception as e:
-        print(f"Erreur lors du scraping du flux RSS : {e}")
+        logger.error(f"Erreur lors du scraping du flux RSS : {e}")
 
 
 if __name__ == "__main__":

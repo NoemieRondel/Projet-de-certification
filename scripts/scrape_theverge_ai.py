@@ -3,18 +3,9 @@ import requests
 from bs4 import BeautifulSoup
 import feedparser
 from datetime import datetime
-from dotenv import load_dotenv
 import re
 import json
-
-# Charger les variables d'environnement
-load_dotenv()
-
-# Configuration de la base de données
-DB_HOST = os.getenv("DB_HOST")
-DB_USER = os.getenv("DB_USER")
-DB_PASSWORD = os.getenv("DB_PASSWORD")
-DB_NAME = os.getenv("DB_NAME")
+import logging
 
 # URL du flux RSS
 RSS_URL = "https://www.theverge.com/rss/index.xml"
@@ -28,12 +19,18 @@ JSON_OUTPUT_DIR = "articles_outputs"
 os.makedirs(JSON_OUTPUT_DIR, exist_ok=True)
 JSON_OUTPUT_FILE = os.path.join(JSON_OUTPUT_DIR, "theverge_articles.json")
 
+# Configuration des logs
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 
 def is_relevant(entry):
     """Vérifie si l'article est pertinent en fonction des mots-clés."""
     title = entry.get("title", "").lower()
     summary = entry.get("summary", "").lower()
-    return any(keyword.lower() in title or keyword.lower() in summary for keyword in KEYWORDS)
+    relevant = any(keyword.lower() in title or keyword.lower() in summary for keyword in KEYWORDS)
+    if relevant:
+        logging.info(f"Article pertinent trouvé : {title}")
+    return relevant
 
 
 def clean_content(content):
@@ -70,16 +67,17 @@ def fetch_theverge_content(url):
 
         return clean_content("\n".join(content)) if content else "Aucun contenu trouvé."
     except requests.exceptions.RequestException as e:
+        logging.error(f"Erreur lors de la récupération du contenu pour {url}: {e}")
         return f"Error fetching content: {e}"
 
 
 def fetch_articles():
     """Récupère les articles pertinents depuis le flux RSS."""
-    print("Récupération d'articles à partir du flux RSS The Verge...")
+    logging.info("Récupération d'articles à partir du flux RSS The Verge...")
     feed = feedparser.parse(RSS_URL)
 
     if not feed.entries:
-        print("Aucun article récupéré. Vérifiez l'URL du flux RSS.")
+        logging.warning("Aucun article récupéré. Vérifiez l'URL du flux RSS.")
         return []
 
     articles = []
@@ -95,7 +93,7 @@ def fetch_articles():
         try:
             published_date = datetime.strptime(published_raw, "%Y-%m-%dT%H:%M:%S%z").date()
         except (ValueError, TypeError):
-            print(f"Date de publication invalide: {published_raw}")
+            logging.warning(f"Date de publication invalide: {published_raw}")
 
         # Vérification de la pertinence
         if is_relevant(entry):
@@ -111,17 +109,17 @@ def fetch_articles():
                 "author": author
             })
 
-    print(f"{len(articles)} articles pertinents récupérés.")
+    logging.info(f"{len(articles)} articles pertinents récupérés.")
     return articles
 
 
 def save_articles_to_json(articles):
     """Sauvegarde les articles dans un fichier JSON."""
-    print(f"Sauvegarde des articles dans le fichier JSON : {JSON_OUTPUT_FILE}")
+    logging.info(f"Sauvegarde des articles dans le fichier JSON : {JSON_OUTPUT_FILE}")
     try:
         # Charger les articles existants s'il y en a
         if os.path.exists(JSON_OUTPUT_FILE):
-            with open(JSON_OUTPUT_FILE, "r") as file:
+            with open(JSON_OUTPUT_FILE, "r", encoding="utf-8") as file:
                 existing_data = json.load(file)
         else:
             existing_data = []
@@ -136,11 +134,11 @@ def save_articles_to_json(articles):
         existing_data.extend(new_articles)
 
         # Écrire dans le fichier JSON
-        with open(JSON_OUTPUT_FILE, "w") as file:
+        with open(JSON_OUTPUT_FILE, "w", encoding="utf-8") as file:
             json.dump(existing_data, file, indent=4, default=str)
-        print(f"{len(new_articles)} articles nouveaux ont été sauvegardés avec succès dans le fichier JSON.")
+        logging.info(f"{len(new_articles)} articles nouveaux ont été sauvegardés avec succès dans le fichier JSON.")
     except Exception as e:
-        print(f"Erreur lors de la sauvegarde dans le fichier JSON : {e}")
+        logging.error(f"Erreur lors de la sauvegarde dans le fichier JSON : {e}")
 
 
 def main():
@@ -148,7 +146,7 @@ def main():
     if articles:
         save_articles_to_json(articles)  # Sauvegarde des articles dans un JSON
     else:
-        print("Aucun article pertinent à sauvegarder.")
+        logging.info("Aucun article pertinent à sauvegarder.")
 
 
 if __name__ == "__main__":

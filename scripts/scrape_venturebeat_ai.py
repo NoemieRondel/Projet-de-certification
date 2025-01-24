@@ -1,20 +1,13 @@
-import mysql.connector
 import feedparser
 from datetime import datetime
-from dotenv import load_dotenv
-import os
-from bs4 import BeautifulSoup
-import requests
 import json
+import os
+import requests
+from bs4 import BeautifulSoup
+import logging
 
-# Charger les variables d'environnement
-load_dotenv()
-
-# Configuration de la base de données
-DB_HOST = os.getenv("DB_HOST")
-DB_USER = os.getenv("DB_USER")
-DB_PASSWORD = os.getenv("DB_PASSWORD")
-DB_NAME = os.getenv("DB_NAME")
+# Configuration des logs
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Dossier pour les fichiers JSON
 JSON_OUTPUT_DIR = "articles_outputs"
@@ -22,27 +15,13 @@ os.makedirs(JSON_OUTPUT_DIR, exist_ok=True)
 JSON_OUTPUT_FILE = os.path.join(JSON_OUTPUT_DIR, "venturebeat_articles.json")
 
 
-# Connexion à la base de données
-def connect_to_database():
-    try:
-        connection = mysql.connector.connect(
-            host=DB_HOST,
-            user=DB_USER,
-            password=DB_PASSWORD,
-            database=DB_NAME
-        )
-        print("Connexion réussie à la base de données.")
-        return connection
-    except mysql.connector.Error as err:
-        print(f"Erreur de connexion : {err}")
-        return None
-
-
 # Charger ou initialiser les données JSON
 def load_json_data():
     if os.path.exists(JSON_OUTPUT_FILE):
         with open(JSON_OUTPUT_FILE, "r", encoding="utf-8") as file:
+            logging.info("Chargement des données JSON existantes.")
             return json.load(file)
+    logging.info("Aucune donnée JSON existante, création d'un nouveau fichier.")
     return []
 
 
@@ -58,18 +37,19 @@ def save_to_json(articles):
     # Écrire les données mises à jour dans le fichier
     with open(JSON_OUTPUT_FILE, "w", encoding="utf-8") as file:
         json.dump(existing_data, file, ensure_ascii=False, indent=4)
-    print(f"{len(new_articles)} nouveaux articles ajoutés au fichier JSON.")
+    logging.info(f"{len(new_articles)} nouveaux articles ajoutés au fichier JSON.")
 
 
 # Fonction pour valider et formater la date
 def validate_and_format_date(date_str):
     if not date_str:
+        logging.warning("Aucune date fournie pour l'article.")
         return None
     try:
         date_obj = datetime.strptime(date_str, '%a, %d %b %Y %H:%M:%S %z')
         return date_obj.date()
     except ValueError:
-        print(f"Erreur lors du parsing de la date : {date_str}")
+        logging.error(f"Erreur lors du parsing de la date : {date_str}")
         return None
 
 
@@ -97,26 +77,25 @@ def fetch_full_content(url):
         article_body = soup.find("div", class_="article-content")
 
         if not article_body:
-            print(f"Impossible de trouver le contenu principal pour : {url}")
+            logging.warning(f"Impossible de trouver le contenu principal pour : {url}")
             return None
 
         # Extraire le texte
         full_content = article_body.get_text(separator=" ").strip()
         return full_content
     except Exception as e:
-        print(f"Erreur lors de la récupération du contenu pour {url} : {e}")
+        logging.error(f"Erreur lors de la récupération du contenu pour {url} : {e}")
         return None
 
 
 # Fonction pour traiter chaque article du flux RSS
-def process_feed(feed_url, connection):
-    print(f"Récupération du flux RSS depuis {feed_url}")
+def process_feed(feed_url):
+    logging.info(f"Récupération du flux RSS depuis {feed_url}")
     feed = feedparser.parse(feed_url)
     if not feed.entries:
-        print("Aucun article trouvé dans le flux RSS.")
+        logging.warning("Aucun article trouvé dans le flux RSS.")
         return
 
-    cursor = connection.cursor()
     articles_to_save = []
     for entry in feed.entries:
         title = entry.title
@@ -126,7 +105,7 @@ def process_feed(feed_url, connection):
         author = entry.get("dc:creator") or entry.get("author", "Unknown")
 
         # Extraire le résumé ou description
-        summary = entry.get("summary", "No summary available")
+        summary = entry.get("summary", "No summary available.")
         summary = clean_html_content(summary)
 
         # Validation et formatage de la date de publication
@@ -146,56 +125,8 @@ def process_feed(feed_url, connection):
             "author": author
         }
 
-        # Vérifier si l'article existe déjà dans la base de données
-        cursor.execute("SELECT COUNT(*) FROM articles WHERE link = %s", (link,))
-        article_exists = cursor.fetchone()[0] > 0
-
-        if article_exists:
-            print(f"L'article '{title}' existe déjà. Mise à jour en cours...")
-            update_query = """
-                UPDATE articles
-                SET title = %s,
-                    source = %s,
-                    publication_date = %s,
-                    summary = %s,
-                    full_content = %s,
-                    language = %s,
-                    author = %s
-                WHERE link = %s
-            """
-            cursor.execute(update_query, (
-                title,
-                "VentureBeat",
-                publication_date,
-                summary,
-                full_content,
-                "english",
-                author,
-                link
-            ))
-        else:
-            print(f"Insertion de l'article '{title}' dans la base de données")
-            insert_query = """
-                INSERT INTO articles (title, source, publication_date, summary, full_content, language, link, author)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            """
-            cursor.execute(insert_query, (
-                title,
-                "VentureBeat",
-                publication_date,
-                summary,
-                full_content,
-                "english",
-                link,
-                author
-            ))
-
         # Ajouter l'article à la liste pour le JSON
         articles_to_save.append(article)
-
-    connection.commit()
-    print(f"Traitement du flux RSS '{feed_url}' terminé.")
-    cursor.close()
 
     # Enregistrer les articles dans le fichier JSON
     save_to_json(articles_to_save)
@@ -203,17 +134,13 @@ def process_feed(feed_url, connection):
 
 # Fonction principale
 def main():
-    connection = connect_to_database()
-    if connection is None:
-        print("Impossible de se connecter à la base de données. Fin du programme.")
-        return
-
+    logging.info("Démarrage du traitement des articles.")
+    
     # Flux RSS pour VentureBeat
     venturebeat_feed_url = "https://venturebeat.com/category/ai/feed/"
-    process_feed(venturebeat_feed_url, connection)
+    process_feed(venturebeat_feed_url)
 
-    connection.close()
-    print("Connexion à la base de données fermée.")
+    logging.info("Traitement terminé.")
 
 
 if __name__ == "__main__":
