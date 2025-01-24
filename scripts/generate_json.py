@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import sys  # Import nécessaire pour utiliser sys.exit()
 
 # Définir les chemins vers les dossiers des fichiers JSON
 ARTICLES_FOLDER = "articles_outputs"
@@ -50,7 +51,8 @@ def merge_and_deduplicate_json_files(input_folder, output_file, unique_key):
         logging.info(f"Fusion et dédoublonnage terminés. Les données ont été sauvegardées dans {output_file}.")
     except Exception as e:
         logging.error(f"Erreur lors de la sauvegarde du fichier {output_file}: {e}")
-
+        if output_file == FINAL_ARTICLES_FILE:  # Vérifier si l'erreur concerne `articles.json`
+            sys.exit(1)  # Arrêter l'exécution du workflow uniquement dans ce cas
 
 # Fusionner et dédoublonner les fichiers JSON pour les articles
 logging.info("Fusion et dédoublonnage des fichiers JSON pour les articles...")
