@@ -71,3 +71,4 @@ jobs:
         path: |
           articles.json
           videos.json
+          arxiv_articles.json
