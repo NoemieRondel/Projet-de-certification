@@ -62,3 +62,12 @@ jobs:
     - name: Generate keywords for scientific articles
       run: python scripts/generate_keywords_scientific_articles.py
       if: ${{ steps.scrape_arxiv_ai.outcome != 'failure' }}  # Si le script arxiv n'a pas échoué, continuer l'étape 8
+
+    # 9. Enregistrer les fichiers générés en tant qu'artefacts
+    - name: Upload generated JSON files
+      uses: actions/upload-artifact@v3
+      with:
+        name: json-outputs
+        path: |
+          articles.json
+          videos.json
