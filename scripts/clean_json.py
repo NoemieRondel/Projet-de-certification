@@ -1,12 +1,8 @@
 import os
 import re
-import mysql.connector
-from dotenv import load_dotenv
-from bs4 import BeautifulSoup
+import json
 import logging
-
-# Charger les variables d'environnement
-load_dotenv()
+from bs4 import BeautifulSoup
 
 # Configuration simple du logging affiché dans le terminal
 logging.basicConfig(
@@ -14,22 +10,12 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-
-def connect_to_database():
-    """Connexion à la base de données via les variables d'environnement."""
-    logging.info("Tentative de connexion à la base de données...")
-    try:
-        connection = mysql.connector.connect(
-            host=os.getenv("DB_HOST"),
-            user=os.getenv("DB_USER"),
-            password=os.getenv("DB_PASSWORD"),
-            database=os.getenv("DB_NAME")
-        )
-        logging.info("Connexion réussie à la base de données.")
-        return connection
-    except mysql.connector.Error as err:
-        logging.error(f"Erreur de connexion : {err}")
-        raise
+# Liste de termes superflus à filtrer
+noise_terms = [
+    "click here", "read more", "terms and conditions", "privacy policy",
+    "sign up", "subscribe", "learn more", "advertisement", "copyright",
+    "all rights reserved", "powered by", "follow us", "get started"
+]
 
 
 def clean_text(text):
@@ -39,13 +25,6 @@ def clean_text(text):
 
     # Suppression des balises HTML
     text = BeautifulSoup(text, "html.parser").get_text()
-
-    # Liste de termes superflus à filtrer
-    noise_terms = [
-        "click here", "read more", "terms and conditions", "privacy policy",
-        "sign up", "subscribe", "learn more", "advertisement", "copyright",
-        "all rights reserved", "powered by", "follow us", "get started"
-    ]
 
     # Suppression des termes superflus
     for term in noise_terms:
@@ -58,48 +37,50 @@ def clean_text(text):
     return text
 
 
-def clean_database_texts(connection):
-    """Nettoie les champs textuels dans la base de données."""
-    tables_fields = {
-        "articles": ["summary", "full_content"],
-        "scientific_articles": ["abstract"],
-        "videos": ["description"]
-    }
-
+def clean_json_file(file_path, fields_to_clean):
+    """Nettoie les champs textuels dans un fichier JSON donné."""
     modified_count = 0  # Compteur des modifications
 
     try:
-        cursor = connection.cursor()
+        with open(file_path, 'r', encoding='utf-8') as file:
+            data = json.load(file)
 
-        for table, fields in tables_fields.items():
-            for field in fields:
-                logging.info(f"Nettoyage du champ '{field}' de la table '{table}'...")
-
-                # Sélection des ID et des champs non vides
-                cursor.execute(f"SELECT id, {field} FROM {table} WHERE {field} IS NOT NULL AND {field} != '';")
-                rows = cursor.fetchall()
-
-                for row_id, text in rows:
-                    cleaned_text = clean_text(text)
-                    if cleaned_text != text:
-                        # Mise à jour uniquement si le texte est modifié
-                        cursor.execute(f"UPDATE {table} SET {field} = %s WHERE id = %s;", (cleaned_text, row_id))
+        for entry in data:
+            # Nettoyage des champs spécifiques à chaque fichier
+            for field in fields_to_clean:
+                if field in entry and entry[field]:
+                    cleaned_text = clean_text(entry[field])
+                    if cleaned_text != entry[field]:
+                        entry[field] = cleaned_text
                         modified_count += 1
-                        logging.info(f"Texte nettoyé pour l'ID {row_id} dans la table '{table}', champ '{field}'.")
+                        logging.info(f"Texte nettoyé pour l'ID {entry.get('id', 'inconnu')} dans le champ '{field}'.")
 
-        connection.commit()
-        logging.info(f"Nettoyage des textes terminé avec succès. Total des éléments modifiés : {modified_count}")
+        # Réécriture du fichier avec les données nettoyées
+        with open(file_path, 'w', encoding='utf-8') as file:
+            json.dump(data, file, ensure_ascii=False, indent=4)
+
+        logging.info(f"Nettoyage terminé pour le fichier '{file_path}'. Total des éléments modifiés : {modified_count}")
 
     except Exception as e:
-        logging.error(f"Erreur lors du nettoyage : {e}")
-    finally:
-        cursor.close()
+        logging.error(f"Erreur lors du nettoyage du fichier {file_path} : {e}")
+
+
+def clean_all_json_files():
+    """Nettoie tous les fichiers JSON des articles, vidéos et arxiv_articles."""
+    files_info = {
+        "articles.json": ['summary', 'full_content'],
+        "videos.json": ['description'],
+        "arxiv_articles.json": ['abstract']
+    }
+
+    for json_file, fields_to_clean in files_info.items():
+        file_path = os.path.join(os.getcwd(), json_file) # Remplacer par le chemin correct
+        if os.path.exists(file_path):
+            logging.info(f"Début du nettoyage pour le fichier : {json_file}")
+            clean_json_file(file_path, fields_to_clean)
+        else:
+            logging.warning(f"Fichier non trouvé : {json_file}")
 
 
 if __name__ == "__main__":
-    try:
-        connection = connect_to_database()
-        clean_database_texts(connection)
-    finally:
-        connection.close()
-        logging.info("Connexion à la base de données fermée.")
+    clean_all_json_files()
