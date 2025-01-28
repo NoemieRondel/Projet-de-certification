@@ -50,20 +50,24 @@ jobs:
     - name: Combine JSON files
       run: python scripts/generate_json.py
 
-    # 6. Générer les résumés
+    # 6. Nettoyer les fichiers JSON
+    - name: Clean JSON files
+      run: python scripts/clean_json.py
+
+    # 7. Générer les résumés
     - name: Generate summaries
       run: python scripts/generate_summaries.py
 
-    # 7. Générer les mots-clés pour les articles
+    # 8. Générer les mots-clés pour les articles
     - name: Generate keywords for articles
       run: python scripts/generate_keywords.py
 
-    # 8. Générer les mots-clés pour les articles scientifiques
+    # 9. Générer les mots-clés pour les articles scientifiques
     - name: Generate keywords for scientific articles
       run: python scripts/generate_keywords_scientific_articles.py
-      if: ${{ steps.scrape_arxiv_ai.outcome != 'failure' }}  # Si le script arxiv n'a pas échoué, continuer l'étape 8
+      if: ${{ steps.scrape_arxiv_ai.outcome != 'failure' }}  # Si le script arxiv n'a pas échoué, continuer l'étape 9
 
-    # 9. Enregistrer les fichiers générés en tant qu'artefacts
+    # 10. Enregistrer les fichiers générés en tant qu'artefacts
     - name: Upload generated JSON files
       uses: actions/upload-artifact@v3
       with:
