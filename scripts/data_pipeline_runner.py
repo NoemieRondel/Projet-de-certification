@@ -31,13 +31,7 @@ if __name__ == "__main__":
     # Étape 2 : Dump de la base de données
     run_script("dump_database.py")
 
-    # Étape 3 : Vérification de la qualité des données
-    run_script("data_quality_checks.py")
-
-    # Étape 4 : Correction des anomalies
-    run_script("resolve_anomalies_articles.py")
-
-    # Étape 5 : Filtrage des articles non pertinents
-    run_script("move_irrelevant_articles.py")
+    # Étape 3 : Nettoyafe de la base de données
+    run_script("database_cleanup.py")
 
     print("=== Pipeline de traitement des données terminé avec succès ===")
