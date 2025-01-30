@@ -89,7 +89,7 @@ DROP TABLE article_content;
 
 COMMIT;
 
-SELECT * FROM videos;
+SELECT * FROM videos ;
 
 -- Renommer le champ content en summary
 ALTER TABLE irrelevant_articles CHANGE COLUMN content summary TEXT;
@@ -99,9 +99,6 @@ ALTER TABLE irrelevant_articles ADD COLUMN full_content LONGTEXT;
 
 -- Supprimer le champ focus_tech
 ALTER TABLE irrelevant_articles DROP focus_tech;
-
-
-
 
 
 

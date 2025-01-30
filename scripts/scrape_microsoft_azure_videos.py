@@ -9,7 +9,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger()
 
 # URL du flux RSS
-rss_url = "https://www.youtube.com/feeds/videos.xml?channel_id=UCXZCJLdBC09xxGZ6gcdrc6A"
+rss_url = "https://www.youtube.com/feeds/videos.xml?channel_id=UC0m-80FnNY2Qb7obvTL_2fA"
 
 # Chemin du dossier pour les fichiers de sortie
 OUTPUT_DIR = "videos_outputs"
