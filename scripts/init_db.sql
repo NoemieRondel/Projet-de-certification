@@ -100,6 +100,25 @@ ALTER TABLE irrelevant_articles ADD COLUMN full_content LONGTEXT;
 -- Supprimer le champ focus_tech
 ALTER TABLE irrelevant_articles DROP focus_tech;
 
+CREATE TABLE users (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  username VARCHAR(50) NOT NULL,
+  email VARCHAR(100) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE user_preferences (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  source_preferences TEXT,
+  video_channel_preferences TEXT,
+  keyword_preferences TEXT,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+
+
 
 
 
