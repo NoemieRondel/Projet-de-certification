@@ -53,11 +53,13 @@ def delete_invalid_links(cursor):
     cursor.execute("SELECT id, link FROM articles WHERE link IS NOT NULL")
     links = cursor.fetchall()
 
-    invalid_links = [row[0] for row in links if not urlparse(row[1]).scheme or not urlparse(row[1]).netloc]
+    # Modification ici pour accéder aux données par clé
+    invalid_links = [row['id'] for row in links if not urlparse(row['link']).scheme or not urlparse(row['link']).netloc]
 
     if invalid_links:
         cursor.execute(f"DELETE FROM articles WHERE id IN ({', '.join(map(str, invalid_links))})")
         logging.info(f"{len(invalid_links)} article(s) supprimé(s) pour liens invalides.")
+
 
 
 def delete_empty_articles(cursor):
