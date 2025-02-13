@@ -2,3 +2,4 @@ scripts/.env
 /aimonitor/
 app/__pycache__
 app/routes/__pycache__
+app/security/__pycache__
