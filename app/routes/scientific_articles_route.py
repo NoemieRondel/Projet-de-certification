@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from app.database import get_connection
 from contextlib import closing
+from app.security.jwt_handler import jwt_required
 
 router = APIRouter()
 
@@ -18,7 +19,8 @@ async def get_all_scientific_articles(
     start_date: str = Query(None, description="Filtrer les articles à partir de cette date (YYYY-MM-DD)"),
     end_date: str = Query(None, description="Filtrer les articles jusqu'à cette date (YYYY-MM-DD)"),
     authors: str = Query(None, description="Filtrer par auteur(s) (séparés par des virgules)"),
-    keywords: str = Query(None, description="Filtrer par mots-clés (séparés par des virgules)")
+    keywords: str = Query(None, description="Filtrer par mots-clés (séparés par des virgules)"),
+    user=Depends(jwt_required)  # Protection avec JWT
 ):
     """Récupère les articles scientifiques avec filtres dynamiques."""
     query = "SELECT * FROM scientific_articles WHERE 1=1"
@@ -72,7 +74,7 @@ async def get_all_scientific_articles(
         500: {"description": "Erreur interne."}
     }
 )
-async def get_suggestions_scientific_articles():
+async def get_suggestions_scientific_articles(user=Depends(jwt_required)):  # Protection avec JWT
     """Retourne les suggestions pour les auteurs et les mots-clés."""
     suggestions = {
         "authors": [],

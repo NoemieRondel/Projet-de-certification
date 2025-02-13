@@ -1,8 +1,10 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from app.database import get_connection
 from contextlib import closing
+from app.security.jwt_handler import jwt_required
 
 router = APIRouter()
+
 
 @router.get(
     "/",
@@ -17,7 +19,8 @@ async def get_all_articles(
     start_date: str = Query(None, description="Filtrer les articles à partir de cette date (YYYY-MM-DD)"),
     end_date: str = Query(None, description="Filtrer les articles jusqu'à cette date (YYYY-MM-DD)"),
     source: str = Query(None, description="Filtrer par source"),
-    keywords: str = Query(None, description="Filtrer par mots-clés (séparés par des virgules)")
+    keywords: str = Query(None, description="Filtrer par mots-clés (séparés par des virgules)"),
+    user=Depends(jwt_required)  # Protection JWT
 ):
     """Récupère les articles avec filtres dynamiques."""
     query = "SELECT * FROM articles WHERE 1=1"
@@ -63,7 +66,7 @@ async def get_all_articles(
 
 
 @router.get("/suggestions", summary="Obtenir les suggestions de sources et de mots-clés")
-async def get_article_suggestions():
+async def get_article_suggestions(user=Depends(jwt_required)):  # Protection JWT
     """Récupère les suggestions de sources et de mots-clés pour les articles."""
     connection = get_connection()
     if connection:
