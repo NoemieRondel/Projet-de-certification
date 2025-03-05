@@ -19,7 +19,11 @@ def create_access_token(data: dict) -> str:
     """Génère un token JWT avec une expiration."""
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire, "sub": data.get("sub")})  # Exemple: "sub" pour l'ID de l'utilisateur
+
+    # Assurer que "sub" est bien une chaîne de caractères
+    user_id = str(data.get("user_id")) if data.get("user_id") is not None else "anonymous"
+
+    to_encode.update({"exp": expire, "sub": user_id})  
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
