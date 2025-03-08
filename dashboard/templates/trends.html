@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Tendances des mots-clés</h2>
+
+<!-- Formulaire de filtrage -->
+<form method="GET" action="{{ url_for('main.trends') }}">
+    <label for="start_date">Date de début :</label>
+    <input type="date" name="start_date" id="start_date" required>
+
+    <label for="end_date">Date de fin :</label>
+    <input type="date" name="end_date" id="end_date" required>
+
+    <label for="limit">Nombre de résultats :</label>
+    <select name="limit">
+        <option value="10">Top 10</option>
+        <option value="20">Top 20</option>
+        <option value="50">Top 50</option>
+    </select>
+
+    <button type="submit">Filtrer</button>
+</form>
+
+<div style="display: flex; flex-wrap: wrap; justify-content: space-around; margin-top: 20px;">
+    <div style="width: 100%; max-width: 600px; margin-bottom: 20px;">
+        <h3>Graphique des tendances</h3>
+        <canvas id="trendsChart"></canvas>
+    </div>
+
+    <div style="width: 100%; max-width: 600px; text-align: center; margin-top: 20px;">
+        <h3>Nuage de mots</h3>
+        <canvas id="wordCloudCanvas"></canvas>
+    </div>
+</div>
+
+<!-- Inclusion des bibliothèques -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/wordcloud2.js/1.0.5/wordcloud2.min.js"></script>
+
+<style>
+    #wordCloudCanvas {
+        display: block
+    }
+</style>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const today = new Date().toISOString().split("T")[0];
+        const pastWeek = new Date();
+        pastWeek.setDate(pastWeek.getDate() - 7);
+        const lastWeekDate = pastWeek.toISOString().split("T")[0];
+
+        document.getElementById("start_date").value = "{{ request.args.get('start_date', lastWeekDate) }}";
+        document.getElementById("end_date").value = "{{ request.args.get('end_date', today) }}";
+
+        // Récupération des données
+        const labels = {{ trends | map(attribute="keyword") | list | tojson }};
+        const dataValues = {{ trends | map(attribute="count") | list | tojson }};
+
+        console.log("Données reçues - Labels:", labels);
+        console.log("Données reçues - Counts:", dataValues);
+
+        if (labels.length === 0) {
+            document.getElementById("trendsChart").style.display = "none";
+            document.getElementById("wordCloudCanvas").style.display = "none";
+            console.warn("Aucune donnée disponible !");
+            return;
+        }
+
+        // Graphique des tendances
+        new Chart(document.getElementById("trendsChart").getContext("2d"), {
+            type: "bar",
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: "Occurrences",
+                    data: dataValues,
+                    backgroundColor: "rgba(54, 162, 235, 0.6)",
+                    borderColor: "rgba(54, 162, 235, 1)",
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+
+        // 📝 Calcul des poids pour le nuage de mots
+        const maxFreq = Math.max(...dataValues);
+        const minFreq = Math.min(...dataValues);
+        const wordList = labels.map((word, index) => [
+            word,
+            maxFreq === minFreq ? 50 : Math.max(30, (dataValues[index] / maxFreq) * 100)
+        ]);
+
+        console.log("Liste des mots pour le WordCloud:", wordList);
+
+        // Vérifier si WordCloud.js est bien chargé
+        console.log("WordCloud object:", typeof WordCloud);
+        if (typeof WordCloud === "undefined") {
+            console.error("WordCloud.js n'a pas été chargé correctement !");
+            return;
+        }
+
+        // 📌 Vérifier la taille du canvas et la corriger
+        setTimeout(() => {
+            const canvas = document.getElementById("wordCloudCanvas");
+            
+            // Forcer la vraie taille
+            canvas.width = 600;
+            canvas.height = 400;
+        
+            console.log("Nouvelle taille du canvas:", canvas.width, canvas.height);
+        
+            WordCloud(canvas, {
+                list: wordList,
+                gridSize: 16,
+                weightFactor: (size) => size / 2, // Adaptation dynamique
+                fontFamily: "Arial",
+                color: () => `hsl(${Math.random() * 360}, 100%, 50%)`,
+                rotateRatio: 0.5,
+                backgroundColor: "#fff"
+            });
+        }, 500);
+
+        // 🔬 Test minimal si rien ne s'affiche
+        setTimeout(() => {
+            const canvas = document.getElementById("wordCloudCanvas");
+            const ctx = canvas.getContext("2d");
+
+            if (ctx.getImageData(0, 0, canvas.width, canvas.height).data.every((pixel) => pixel === 255)) {
+                console.warn("Le WordCloud semble vide, test avec des données statiques...");
+                WordCloud(canvas, {
+                    list: [["Test", 50], ["WordCloud", 40], ["Demo", 30]],
+                    weightFactor: 10,
+                    color: "random-light",
+                    backgroundColor: "#fff"
+                });
+            }
+        }, 1000);
+    });
+</script>
+
+{% endblock %}

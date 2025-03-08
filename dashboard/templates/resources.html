@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Ressources{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">Les dernières vidéos</h2>
+
+    {% if resources.videos %}
+        <div class="row">
+            {% for video in resources.videos %}
+                <div class="col-md-4">
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ video.title }}</h5>
+                            <h6 class="card-subtitle text-muted">{{ video.channel_name }}</h6>
+                            <p class="card-text"><small>Publiée le {{ video.publication_date }}</small></p>
+                            <p class="card-text">{{ video.description[:150] if video.description else "No description available" }}...</p>
+                            <a href="{{ video.video_url }}" class="btn btn-primary" target="_blank">Regarder</a>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p>Aucune vidéo disponible.</p>
+    {% endif %}
+
+    <h2 class="mt-5 mb-4">Les derniers articles</h2>
+
+    {% if resources.articles %}
+        <div class="row">
+            {% for article in resources.articles %}
+                <div class="col-md-4">
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ article.title }}</h5>
+                            <h6 class="card-subtitle text-muted">{{ article.source }}</h6>
+                            <p class="card-text"><small>Publié le {{ article.publication_date }}</small></p>
+                            <p class="card-text">{{ article.summary[:150] if article.summary else "No summary available" }}...</p>
+                            <a href="{{ article.link }}" class="btn btn-primary" target="_blank">Lire l'article</a>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p>Aucun article disponible.</p>
+    {% endif %}
+
+    <h2 class="mt-5 mb-4">Les derniers articles scientifiques</h2>
+
+    {% if resources.scientific_articles %}
+        <div class="row">
+            {% for article in resources.scientific_articles %}
+                <div class="col-md-4">
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ article.title }}</h5>
+                            <h6 class="card-subtitle text-muted">{{ article.source }}</h6>
+                            <p class="card-text"><small>Publié le {{ article.publication_date }}</small></p>
+                            <p class="card-text">{{ article.abstract[:150] if article.abstract else "No abstract available" }}...</p>
+                            <a href="{{ article.link }}" class="btn btn-primary" target="_blank">Lire l'article scientifique</a>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p>Aucun article scientifique disponible.</p>
+    {% endif %}
+</div>
+{% endblock %}
