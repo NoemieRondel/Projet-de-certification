@@ -4,14 +4,17 @@ from app.routes import (
     articles_route, videos_route, scientific_articles_route,
     metrics_route, trends_route, auth_route
 )
-from app.security.password_handler import hash_password, verify_password
 from app.security.jwt_handler import jwt_required
 import logging
 
-# Initialisation de l'application FastAPI
+# Initialisation de FastAPI
 app = FastAPI()
 
-# Inclusion des routes publiques (non protégées)
+# Configuration du logger
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Inclusion des routes publiques
 app.include_router(auth_route.router, prefix="/auth", tags=["Auth"])
 
 # Inclusion des routes protégées
@@ -27,22 +30,26 @@ for router, prefix, tag in protected_routes:
     app.include_router(router, prefix=prefix, tags=[tag], dependencies=[Depends(jwt_required)])
 
 
-# Tâche périodique (vérification des alertes)
+# Fonction pour vérifier les alertes
 def check_alerts():
     """Vérifie les alertes pour les utilisateurs (remplacer par ta logique)."""
-    logging.info("Vérification des alertes en cours...")
+    logger.info("Vérification des alertes en cours...")
 
 
-# Configuration du scheduler pour exécuter la tâche toutes les 10 minutes
-scheduler = BackgroundScheduler()
-scheduler.add_job(check_alerts, 'interval', minutes=10)
-scheduler.start()
+# Démarrage du scheduler de manière sécurisée
+try:
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(check_alerts, 'interval', minutes=10)
+    scheduler.start()
+    logger.info("Scheduler démarré avec succès.")
+except Exception as e:
+    logger.error(f"Erreur lors du démarrage du scheduler : {e}")
 
 
 # Gestion propre de l'arrêt du scheduler
 @app.on_event("shutdown")
 def shutdown_scheduler():
-    logging.info("Arrêt du scheduler...")
+    logger.info("Arrêt du scheduler...")
     scheduler.shutdown()
 
 
