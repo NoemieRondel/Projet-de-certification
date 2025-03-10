@@ -97,7 +97,7 @@ def resources():
             # Sélectionner la vidéo la plus récente par chaîne
             latest_videos = {}
             for video in all_videos:
-                channel = video["channel_name"]
+                channel = video["source"]
                 if channel not in latest_videos or video["publication_date"] > latest_videos[channel]["publication_date"]:
                     latest_videos[channel] = video
 
@@ -203,3 +203,45 @@ def trends():
         trends_data = []
 
     return render_template("trends.html", trends=trends_data)
+
+
+@main.route("/metrics")
+def metrics():
+    """Affiche les métriques des articles, vidéos et mots-clés."""
+    headers = get_headers()
+    if not headers:
+        return redirect(url_for("main.login"))
+
+    metrics_data = {
+        "articles_by_source": [],
+        "videos_by_source": [],
+        "top_keywords_by_source": [],
+        "keyword_frequency": [],
+        "scientific_keyword_frequency": [],
+    }
+
+    try:
+        # Nombre d'articles par source
+        response = requests.get(f"{API_URL}/metrics/articles-by-source", headers=headers)
+        if response.status_code == 200:
+            metrics_data["articles_by_source"] = response.json()
+
+        # Nombre de vidéos par source
+        response = requests.get(f"{API_URL}/metrics/videos-by-source", headers=headers)
+        if response.status_code == 200:
+            metrics_data["videos_by_source"] = response.json()
+
+        # Fréquence des mots-clés dans les articles
+        response = requests.get(f"{API_URL}/metrics/keyword-frequency", headers=headers)
+        if response.status_code == 200:
+            metrics_data["keyword_frequency"] = response.json()
+
+        # Fréquence des mots-clés dans les articles scientifiques
+        response = requests.get(f"{API_URL}/metrics/scientific-keyword-frequency", headers=headers)
+        if response.status_code == 200:
+            metrics_data["scientific_keyword_frequency"] = response.json()
+
+    except requests.exceptions.RequestException:
+        flash("Erreur de connexion au serveur.", "danger")
+
+    return render_template("metrics.html", metrics=metrics_data)

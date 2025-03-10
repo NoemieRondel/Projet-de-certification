@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}Indicateurs{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">Indicateurs des articles et vidéos</h2>
+
+    <!-- Nombre d'articles par source -->
+    <h4>Nombre d'articles par source</h4>
+    {% if metrics.articles_by_source %}
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Source</th>
+                    <th>Nombre d'articles</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for source in metrics.articles_by_source %}
+                    <tr>
+                        <td>{{ source.source }}</td>
+                        <td>{{ source.count }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p class="text-muted">Aucune donnée disponible.</p>
+    {% endif %}
+
+    <hr>
+
+    <!-- Nombre de vidéos par source -->
+    <h4>Nombre de vidéos par source</h4>
+    {% if metrics.videos_by_source %}
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Source</th>
+                    <th>Nombre de vidéos</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for source in metrics.videos_by_source %}
+                    <tr>
+                        <td>{{ source.source }}</td>
+                        <td>{{ source.count }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p class="text-muted">Aucune donnée disponible.</p>
+    {% endif %}
+
+    <hr>
+
+    <!-- Fréquence des mots-clés dans les articles -->
+    <h4>Fréquence des mots-clés dans les articles</h4>
+    {% if metrics.keyword_frequency %}
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Mot-clé</th>
+                    <th>Occurrences</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for keyword in metrics.keyword_frequency %}
+                    <tr>
+                        <td>{{ keyword.keyword }}</td>
+                        <td>{{ keyword.count }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p class="text-muted">Aucune donnée disponible.</p>
+    {% endif %}
+
+    <hr>
+
+    <!-- Fréquence des mots-clés dans les articles scientifiques -->
+    <h4>Fréquence des mots-clés dans les articles scientifiques</h4>
+    {% if metrics.scientific_keyword_frequency %}
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Mot-clé</th>
+                    <th>Occurrences</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for keyword in metrics.scientific_keyword_frequency %}
+                    <tr>
+                        <td>{{ keyword.keyword }}</td>
+                        <td>{{ keyword.count }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p class="text-muted">Aucune donnée disponible.</p>
+    {% endif %}
+
+</div>
+{% endblock %}

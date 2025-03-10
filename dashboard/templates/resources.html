@@ -13,7 +13,7 @@
                     <div class="card mb-3">
                         <div class="card-body">
                             <h5 class="card-title">{{ video.title }}</h5>
-                            <h6 class="card-subtitle text-muted">{{ video.channel_name }}</h6>
+                            <h6 class="card-subtitle text-muted">{{ video.source }}</h6>
                             <p class="card-text"><small>Publiée le {{ video.publication_date }}</small></p>
                             <p class="card-text">{{ video.description[:150] if video.description else "No description available" }}...</p>
                             <a href="{{ video.video_url }}" class="btn btn-primary" target="_blank">Regarder</a>
