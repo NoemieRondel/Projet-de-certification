@@ -60,7 +60,7 @@
                             <h6 class="card-subtitle text-muted">{{ article.source }}</h6>
                             <p class="card-text"><small>Publié le {{ article.publication_date }}</small></p>
                             <p class="card-text">{{ article.abstract[:150] if article.abstract else "No abstract available" }}...</p>
-                            <a href="{{ article.link }}" class="btn btn-primary" target="_blank">Lire l'article scientifique</a>
+                            <a href="{{ article.article_url }}" class="btn btn-primary" target="_blank">En savoir plus</a>
                         </div>
                     </div>
                 </div>

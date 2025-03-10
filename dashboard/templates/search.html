@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}Recherche{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">Recherche</h2>
+    
+    <!-- Formulaire de recherche -->
+    <form method="POST" class="mb-4">
+        <div class="form-group">
+            <label for="search_type">Type de recherche :</label>
+            <select id="search_type" name="search_type" class="form-control">
+                <option value="articles">Articles</option>
+                <option value="scientific_articles">Articles scientifiques</option>
+                <option value="videos">Vidéos</option>
+            </select>
+        </div>
+
+        <div class="form-group" id="source_group">
+            <label for="source">Source :</label>
+            <input type="text" id="source" name="source" class="form-control" placeholder="Ex: TechCrunch, The Verge...">
+        </div>
+
+        <div class="form-group">
+            <label for="keywords">Mots-clés :</label>
+            <input type="text" id="keywords" name="keywords" class="form-control" placeholder="Ex: AI, Machine Learning...">
+        </div>
+
+        <div class="form-group" id="authors_group">
+            <label for="authors">Auteurs (pour articles scientifiques) :</label>
+            <input type="text" id="authors" name="authors" class="form-control" placeholder="Ex: John Doe...">
+        </div>
+
+        <div class="form-group">
+            <label for="start_date">Date de début :</label>
+            <input type="date" id="start_date" name="start_date" class="form-control">
+        </div>
+
+        <div class="form-group">
+            <label for="end_date">Date de fin :</label>
+            <input type="date" id="end_date" name="end_date" class="form-control">
+        </div>
+
+        <button type="submit" class="btn btn-primary mt-3">Rechercher</button>
+    </form>
+
+    <h3 class="mt-5">Résultats :</h3>
+
+    <!-- Résultats des articles -->
+    {% if results.articles %}
+        <h4>Articles :</h4>
+        <div class="row">
+            {% for article in results.articles %}
+                <div class="col-md-4">
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ article.title }}</h5>
+                            <p class="card-text"><small>Source : {{ article.source }} - Publié le {{ article.publication_date }}</small></p>
+                            <a href="{{ article.link }}" class="btn btn-primary" target="_blank">Lire l'article</a>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <!-- Résultats des articles scientifiques -->
+    {% if results.scientific_articles %}
+        <h4>Articles scientifiques :</h4>
+        <div class="row">
+            {% for article in results.scientific_articles %}
+                <div class="col-md-4">
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ article.title }}</h5>
+                            <p class="card-text"><small>Auteur : {{ article.authors }} - Publié le {{ article.publication_date }}</small></p>
+                            <a href="{{ article.link }}" class="btn btn-primary" target="_blank">Lire l'article scientifique</a>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <!-- Résultats des vidéos -->
+    {% if results.videos %}
+        <h4>Vidéos :</h4>
+        <div class="row">
+            {% for video in results.videos %}
+                <div class="col-md-4">
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ video.title }}</h5>
+                            <p class="card-text"><small>Source : {{ video.source }} - Publiée le {{ video.publication_date }}</small></p>
+                            <a href="{{ video.video_url }}" class="btn btn-primary" target="_blank">Regarder</a>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>
+
+<!-- Script pour cacher/afficher dynamiquement les champs -->
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    let searchType = document.getElementById("search_type");
+    let sourceGroup = document.getElementById("source_group");
+    let authorsGroup = document.getElementById("authors_group");
+
+    function toggleFields() {
+        let selectedType = searchType.value;
+        
+        // Afficher/Masquer les champs selon le type de recherche
+        sourceGroup.style.display = (selectedType === "articles" || selectedType === "videos") ? "block" : "none";
+        authorsGroup.style.display = (selectedType === "scientific_articles") ? "block" : "none";
+    }
+
+    // Événement sur changement de sélection
+    searchType.addEventListener("change", toggleFields);
+
+    // Exécuter une première fois au chargement
+    toggleFields();
+});
+</script>
+
+{% endblock %}

@@ -74,6 +74,9 @@ async def get_all_articles(
         query += " AND (" + " OR ".join(["keywords LIKE %s"] * len(keyword_list)) + ")"
         params.extend(keyword_list)
 
+    # Ajout du tri par date (du plus récent au plus ancien)
+    query += " ORDER BY publication_date DESC"
+
     # Connexion à la base de données
     connection = get_connection()
     if not connection:

@@ -76,6 +76,9 @@ async def get_all_scientific_articles(
         query += " AND (" + " OR ".join(["keywords LIKE %s"] * len(keyword_list)) + ")"
         params.extend(keyword_list)
 
+    # Ajout du tri par date (du plus récent au plus ancien)
+    query += " ORDER BY publication_date DESC"
+
     # LOG : Requête SQL générée
     print(f"Requête SQL : {query}")
     print(f"Paramètres : {params}")

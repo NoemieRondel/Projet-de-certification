@@ -19,7 +19,7 @@ class VideoResponse(BaseModel):
     id: int
     title: str
     video_url: str
-    channel_name: str
+    source: str
     publication_date: str  # Format YYYY-MM-DD
     description: Optional[str]
 
@@ -46,13 +46,13 @@ def validate_date(date_str):
 async def get_all_videos(
     start_date: Optional[str] = Query(None, description="Filtrer les vidéos à partir de cette date (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="Filtrer les vidéos jusqu'à cette date (YYYY-MM-DD)"),
-    channel_name: Optional[str] = Query(None, description="Filtrer par chaîne (channel_name)"),
+    source: Optional[str] = Query(None, description="Filtrer par source (source)"),
     user=Depends(jwt_required)
 ):
     """Récupère les vidéos avec filtres dynamiques."""
 
     query = """
-        SELECT id, title, video_url, channel_name, publication_date, description
+        SELECT id, title, video_url, source, publication_date, description
         FROM videos
         WHERE 1=1
     """
@@ -68,9 +68,12 @@ async def get_all_videos(
         query += " AND publication_date <= %s"
         params.append(end_date)
 
-    if channel_name:
-        query += " AND channel_name = %s"
-        params.append(channel_name)
+    if source:
+        query += " AND source = %s"
+        params.append(source)
+
+    # Ajout du tri par date (du plus récent au plus ancien)
+    query += " ORDER BY publication_date DESC"
 
     logger.info(f"Requête SQL : {query}")
     logger.info(f"Paramètres : {params}")

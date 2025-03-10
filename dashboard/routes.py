@@ -111,7 +111,7 @@ def resources():
             # Sélectionner l'article le plus récent par source
             latest_articles = {}
             for article in all_articles:
-                source = article["source"]  # Supposons que chaque article a un champ "source"
+                source = article["source"]
                 if source not in latest_articles or article["publication_date"] > latest_articles[source]["publication_date"]:
                     latest_articles[source] = article
 
@@ -132,6 +132,54 @@ def resources():
         flash("Erreur de connexion au serveur.", "danger")
 
     return render_template("resources.html", resources=resources_data)
+
+
+@main.route("/search", methods=["GET", "POST"])
+def search():
+    """Page de recherche pour articles, vidéos et articles scientifiques."""
+    headers = get_headers()
+    if not headers:
+        return redirect(url_for("main.login"))
+
+    search_results = {"articles": [], "scientific_articles": [], "videos": []}
+
+    if request.method == "POST":
+        # Récupération des critères
+        search_type = request.form.get("search_type")  # articles, scientific_articles ou videos
+        source = request.form.get("source", "").strip()
+        keywords = request.form.get("keywords", "").strip()
+        authors = request.form.get("authors", "").strip()
+        start_date = request.form.get("start_date", "").strip()
+        end_date = request.form.get("end_date", "").strip()
+
+        params = {"keywords": keywords, "start_date": start_date, "end_date": end_date}
+
+        try:
+            if search_type == "articles":
+                if source:
+                    params["source"] = source
+                response = requests.get(f"{API_URL}/articles", headers=headers, params=params)
+                if response.status_code == 200:
+                    search_results["articles"] = format_dates(response.json())
+
+            elif search_type == "scientific_articles":
+                if authors:
+                    params["authors"] = authors
+                response = requests.get(f"{API_URL}/scientific-articles", headers=headers, params=params)
+                if response.status_code == 200:
+                    search_results["scientific_articles"] = format_dates(response.json())
+
+            elif search_type == "videos":
+                if source:
+                    params["source"] = source
+                response = requests.get(f"{API_URL}/videos", headers=headers, params=params)
+                if response.status_code == 200:
+                    search_results["videos"] = format_dates(response.json())
+
+        except requests.exceptions.RequestException:
+            flash("Erreur de connexion au serveur.", "danger")
+
+    return render_template("search.html", results=search_results)
 
 
 @main.route("/trends")
