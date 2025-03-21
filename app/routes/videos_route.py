@@ -107,3 +107,27 @@ async def get_all_videos(
 
     finally:
         connection.close()
+
+
+@router.get("/video-sources", summary="Obtenir les chaînes uniques des vidéos")
+async def get_video_sources(user=Depends(jwt_required)):
+    """Récupère les sources distinctes des vidéos."""
+
+    connection = get_connection()
+    if not connection:
+        logging.error("Impossible de se connecter à la base de données.")
+        raise HTTPException(status_code=500, detail="Impossible de se connecter à la base de données.")
+
+    try:
+        with closing(connection.cursor(dictionary=True)) as cursor:
+            cursor.execute("SELECT DISTINCT channel_name FROM videos WHERE channel_name IS NOT NULL")
+            channel_names = [row["channel_name"] for row in cursor.fetchall()]
+
+            return {"channel_name": channel_names}
+
+    except Exception as e:
+        logging.error(f"Erreur lors de la récupération des chaînes des vidéos : {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erreur interne : {str(e)}")
+
+    finally:
+        connection.close()

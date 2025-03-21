@@ -2,7 +2,8 @@ from fastapi import FastAPI, Depends
 from apscheduler.schedulers.background import BackgroundScheduler
 from app.routes import (
     articles_route, videos_route, scientific_articles_route,
-    metrics_route, trends_route, auth_route
+    metrics_route, trends_route, auth_route, user_preferences_route,
+    dashboard_route
 )
 from app.security.jwt_handler import jwt_required
 import logging
@@ -24,6 +25,8 @@ protected_routes = [
     (scientific_articles_route.router, "/scientific-articles", "Scientific Articles"),
     (metrics_route.router, "/metrics", "Metrics"),
     (trends_route.router, "/trends", "Trends"),
+    (user_preferences_route.router, "/preferences", "User Preferences"),
+    (dashboard_route.router, "/dashboard", "Dashboard")
 ]
 
 for router, prefix, tag in protected_routes:

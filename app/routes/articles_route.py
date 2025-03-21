@@ -29,7 +29,7 @@ def validate_date(date_str):
         raise HTTPException(status_code=400, detail=f"Format de date invalide : {date_str}. Utilisez YYYY-MM-DD.")
 
 
-# Route pour récupérer TOUS les articles avec filtres dynamiques
+# Route pour récupérer tous les articles avec filtres dynamiques
 @router.get(
     "/",
     summary="Récupère tous les articles",
@@ -48,7 +48,7 @@ async def get_all_articles(
     user=Depends(jwt_required)
 ):
     """Récupère les articles avec filtres dynamiques."""
-    
+
     # Initialisation de la requête de base
     query = """
         SELECT id, title, source, publication_date, keywords, summary, link
@@ -107,7 +107,7 @@ async def get_all_articles(
         connection.close()
 
 
-# Route pour récupérer les DERNIERS articles par source
+# Route pour récupérer les derniers articles par source
 @router.get(
     "/latest",
     summary="Récupère le(s) dernier(s) article(s) par source",
@@ -158,38 +158,6 @@ async def get_latest_articles(user=Depends(jwt_required)):
 
     except Exception as e:
         logging.error(f"Erreur lors de l'exécution de la requête : {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Erreur interne : {str(e)}")
-
-    finally:
-        connection.close()
-
-
-# Route pour récupérer les suggestions de sources et de mots-clés
-@router.get("/suggestions", summary="Obtenir les suggestions de sources et de mots-clés")
-async def get_article_suggestions(user=Depends(jwt_required)):
-    """Récupère les suggestions de sources et de mots-clés pour les articles."""
-
-    connection = get_connection()
-    if not connection:
-        logging.error("Impossible de se connecter à la base de données.")
-        raise HTTPException(status_code=500, detail="Impossible de se connecter à la base de données.")
-
-    try:
-        with closing(connection.cursor(dictionary=True)) as cursor:
-            # Récupération des sources distinctes
-            cursor.execute("SELECT DISTINCT source FROM articles WHERE source IS NOT NULL")
-            sources = [row["source"] for row in cursor.fetchall()]
-
-            # Récupération des mots-clés distincts
-            cursor.execute("SELECT DISTINCT keywords FROM articles WHERE keywords IS NOT NULL")
-            keywords = set()
-            for row in cursor.fetchall():
-                keywords.update(row["keywords"].split(";"))
-
-            return {"sources": sources, "keywords": sorted(keywords)}
-
-    except Exception as e:
-        logging.error(f"Erreur lors de la récupération des suggestions : {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur interne : {str(e)}")
 
     finally:

@@ -50,6 +50,7 @@ async def get_articles_by_source(user=Depends(jwt_required)):
         SELECT source, COUNT(*) as count
         FROM articles
         GROUP BY source
+        ORDER BY count DESC
     """
     return await execute_query(query)
 
@@ -73,6 +74,7 @@ async def get_videos_by_source(user=Depends(jwt_required)):
         SELECT source, COUNT(*) as count
         FROM videos
         GROUP BY source
+        ORDER BY count DESC
     """
     return await execute_query(query)
 
