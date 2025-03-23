@@ -1,22 +1,87 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tableau de bord</title>
-</head>
-<body>
-    <h1>Bienvenue dans votre tableau de bord !</h1>
-    
-    <nav>
-        <ul>
-            <li><a href="{{ url_for('main.trends') }}">Voir les tendances</a></li>
-            <li><a href="{{ url_for('main.resources') }}">Voir les ressources</a></li>
-            <li><a href="{{ url_for('main.search') }}">Rechercher</a></li>
-            <li><a href="{{ url_for('main.metrics') }}">Voir les indicateurs</a></li>
-            <li><a href="{{ url_for('main.logout') }}">Se déconnecter</a></li>
-        </ul>
-    </nav>
+{% extends "base.html" %}
 
-</body>
-</html>
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">📊 Mon dashboard</h1>
+
+    <!-- Formulaire pour changer la limite d'affichage -->
+    <form method="GET" action="{{ url_for('main.dashboard') }}" class="mb-3">
+        <label for="limit" class="form-label">Nombre d'éléments à afficher :</label>
+        <select name="limit" id="limit" class="form-select w-auto d-inline-block">
+            {% for val in [10, 20, 30, 40, 50] %}
+                <option value="{{ val }}" {% if val == limit %}selected{% endif %}>{{ val }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-primary ms-2">Appliquer</button>
+    </form>
+    
+
+    <!-- Statistiques globales -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card text-bg-primary">
+                <div class="card-body">
+                    <h5 class="card-title">📄 Articles</h5>
+                    <p class="card-text fs-4">{{ dashboard.articles_count }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-bg-success">
+                <div class="card-body">
+                    <h5 class="card-title">🎥 Vidéos</h5>
+                    <p class="card-text fs-4">{{ dashboard.videos_count }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-bg-warning">
+                <div class="card-body">
+                    <h5 class="card-title">📚 Articles scientifiques</h5>
+                    <p class="card-text fs-4">{{ dashboard.scientific_articles_count }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section des articles (par source et par mots-clés, sans doublons) -->
+    <h2>📰 Articles récents</h2>
+    <ul class="list-group mb-4">
+        {% for article in dashboard.unique_articles %}
+            <li class="list-group-item">
+                <a href="{{ article.link }}" target="_blank">{{ article.title }}</a>
+                <small class="text-muted">({{ article.source }}, {{ article.publication_date }}, {{article.keywords}})</small>
+            </li>
+        {% else %}
+            <li class="list-group-item text-muted">Aucun article récent</li>
+        {% endfor %}
+    </ul>
+
+    <!-- Section des derniers articles scientifiques -->
+    <h2>📖 Derniers articles scientifiques</h2>
+    <ul class="list-group mb-4">
+        {% for article in dashboard.scientific_articles_by_keywords %}
+            <li class="list-group-item">
+                <a href="{{ article.article_url }}" target="_blank">{{ article.title }}</a>
+                <small class="text-muted">({{ article.authors}},{{ article.publication_date }}, {{ article.keywords }})</small>
+            </li>
+        {% else %}
+            <li class="list-group-item text-muted">Aucun article scientifique récent</li>
+        {% endfor %}
+    </ul>
+
+    <!-- Section des dernières vidéos -->
+    <h2>🎬 Dernières vidéos</h2>
+    <ul class="list-group mb-4">
+        {% for video in dashboard.latest_videos %}
+            <li class="list-group-item">
+                <a href="{{ video.video_url }}" target="_blank">{{ video.title }}</a>
+                <small class="text-muted">({{ video.source }}, {{ video.publication_date }})</small>
+            </li>
+        {% else %}
+            <li class="list-group-item text-muted">Aucune vidéo récente</li>
+        {% endfor %}
+    </ul>
+
+</div>
+{% endblock %}

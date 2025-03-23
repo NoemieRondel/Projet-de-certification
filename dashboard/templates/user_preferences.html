@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="container mt-4">
+    <h2>Préférences Utilisateur</h2>
+
+    <!-- Section récapitulative des préférences actuelles -->
+    <div class="alert alert-info mt-3">
+        <h5>📌 Vos préférences actuelles</h5>
+        <ul class="mb-0">
+            <li><strong>Sources d'articles :</strong> 
+                {% if preferences.user_preferences.source_preferences %}
+                    {{ preferences.user_preferences.source_preferences | join(", ") }}
+                {% else %}
+                    <span class="text-muted">Aucune sélectionnée</span>
+                {% endif %}
+            </li>
+            <li><strong>Chaînes vidéo :</strong> 
+                {% if preferences.user_preferences.video_channel_preferences %}
+                    {{ preferences.user_preferences.video_channel_preferences | join(", ") }}
+                {% else %}
+                    <span class="text-muted">Aucune sélectionnée</span>
+                {% endif %}
+            </li>
+            <li><strong>Mots-clés :</strong> 
+                {% if preferences.user_preferences.keyword_preferences %}
+                    {{ preferences.user_preferences.keyword_preferences | join(", ") }}
+                {% else %}
+                    <span class="text-muted">Aucun sélectionné</span>
+                {% endif %}
+            </li>
+        </ul>
+    </div>
+    
+    <!-- Formulaire pour mettre à jour les préférences -->
+    <form method="POST" class="mt-3">
+        <!-- Sélection des sources préférées -->
+        <div class="mb-3">
+            <label for="source_preferences" class="form-label">Sources d'articles préférées :</label>
+            <select id="source_preferences" name="source_preferences" class="form-select" multiple>
+                {% for source in filters.available_filters.articles %}
+                    <option value="{{ source }}" {% if source in preferences.user_preferences.source_preferences %}selected{% endif %}>
+                        {{ source }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Sélection des chaînes vidéo préférées -->
+        <div class="mb-3">
+            <label for="video_channel_preferences" class="form-label">Chaînes vidéo préférées :</label>
+            <select id="video_channel_preferences" name="video_channel_preferences" class="form-select" multiple>
+                {% for channel in filters.available_filters.videos %}
+                    <option value="{{ channel }}" {% if channel in preferences.user_preferences.video_channel_preferences %}selected{% endif %}>
+                        {{ channel }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Sélection des mots-clés préférés -->
+        <div class="mb-3">
+            <label for="keyword_preferences" class="form-label">Mots-clés préférés :</label>
+            <select id="keyword_preferences" name="keyword_preferences" class="form-select" multiple>
+                {% for keyword in filters.available_filters.keywords %}
+                    <option value="{{ keyword }}" {% if keyword in preferences.user_preferences.keyword_preferences %}selected{% endif %}>
+                        {{ keyword }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Bouton de soumission pour mettre à jour -->
+        <button type="submit" class="btn btn-primary">Mettre à jour</button>
+    </form>
+
+   <!-- Formulaire pour supprimer des préférences -->
+<form method="POST" action="{{ url_for('main.user_preferences') }}" class="mt-4">
+    <input type="hidden" name="delete_action" value="1"> <!-- Simule DELETE -->
+
+    <h5>Supprimer des préférences</h5>
+
+    <!-- Sélection des préférences à supprimer -->
+    <div class="mb-3">
+        <label for="delete_sources" class="form-label">Sources d'articles à supprimer :</label>
+        <select id="delete_sources" name="source_preferences" class="form-select" multiple>
+            {% for source in preferences.user_preferences.source_preferences %}
+                <option value="{{ source }}">{{ source }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label for="delete_video_channels" class="form-label">Chaînes vidéo à supprimer :</label>
+        <select id="delete_video_channels" name="video_channel_preferences" class="form-select" multiple>
+            {% for channel in preferences.user_preferences.video_channel_preferences %}
+                <option value="{{ channel }}">{{ channel }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label for="delete_keywords" class="form-label">Mots-clés à supprimer :</label>
+        <select id="delete_keywords" name="keyword_preferences" class="form-select" multiple>
+            {% for keyword in preferences.user_preferences.keyword_preferences %}
+                <option value="{{ keyword }}">{{ keyword }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <button type="submit" class="btn btn-danger">Supprimer les préférences sélectionnées</button>
+</form>
+
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const preferences = {{ preferences | tojson }};
+        const filters = {{ filters | tojson }};
+        
+        // Vérification de l'existence des filtres avant d'essayer de les utiliser
+        if (filters.available_filters && filters.available_filters.sources && filters.available_filters.video_channels && filters.available_filters.keywords) {
+            // Fonction pour remplir une liste déroulante avec des options, et vérifier les éléments sélectionnés
+            function populateSelect(selectId, options, selectedOptions) {
+                const select = document.getElementById(selectId);
+                select.innerHTML = '';  // Vider les options existantes
+                
+                options.forEach(optionValue => {
+                    const option = document.createElement('option');
+                    option.value = optionValue;
+                    option.textContent = optionValue;
+
+                    // Si l'option est sélectionnée dans les préférences, on l'ajoute comme sélectionnée
+                    if (selectedOptions.includes(optionValue)) {
+                        option.selected = true;
+                    }
+
+                    select.appendChild(option);
+                });
+            }
+
+            // Remplir chaque liste déroulante avec les données appropriées
+            populateSelect('source_preferences', filters.available_filters.articles, preferences.source_preferences || []);
+            populateSelect('video_channel_preferences', filters.available_filters.videos, preferences.video_channel_preferences || []);
+            populateSelect('keyword_preferences', filters.available_filters.keywords, preferences.keyword_preferences || []);
+        } else {
+            console.error('Les données des filtres ne sont pas définies correctement.', filters);
+        }
+    });
+</script>
+
+{% endblock %}

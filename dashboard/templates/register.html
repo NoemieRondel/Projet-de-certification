@@ -1,17 +1,83 @@
-<!-- register.html -->
-<form method="POST" action="{{ url_for('main.register') }}">
-    <label for="username">Nom d'utilisateur</label>
-    <input type="text" name="username" required>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inscription - AI Horizon</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
 
-    <label for="email">Email</label>
-    <input type="email" name="email" required>
+        .container {
+            background: #ffffff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
 
-    <label for="password">Mot de passe</label>
-    <input type="password" name="password" required>
+        h2 {
+            color: #003366;
+            margin-bottom: 20px;
+        }
 
-    {% if error %}
-        <p style="color: red;">{{ error }}</p>
-    {% endif %}
+        input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 1em;
+        }
 
-    <button type="submit">S'inscrire</button>
-</form>
+        button {
+            width: 100%;
+            background-color: #ff6600;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background-color: #cc5500;
+        }
+
+        .link {
+            margin-top: 15px;
+            display: block;
+            color: #003366;
+            text-decoration: none;
+        }
+
+        .link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Inscription</h2>
+        <form method="POST" action="{{ url_for('main.register') }}">
+            <input type="text" name="username" placeholder="Nom d'utilisateur" required>
+            <input type="email" name="email" placeholder="Email" required>
+            <input type="password" name="password" placeholder="Mot de passe" required>
+            <button type="submit">S'inscrire</button>
+        </form>
+        <a href="{{ url_for('main.login') }}" class="link">Déjà inscrit ? Connectez-vous</a>
+    </div>
+</body>
+</html>

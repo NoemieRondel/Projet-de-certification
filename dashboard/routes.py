@@ -75,8 +75,77 @@ def logout():
 
 @main.route("/dashboard")
 def dashboard():
-    """Affiche le tableau de bord si l'utilisateur est connecté."""
-    return render_template("dashboard.html") if "token" in session else redirect(url_for("main.login"))
+    """Affiche le tableau de bord avec les tendances, métriques et derniers contenus."""
+    headers = get_headers()
+    if not headers:
+        return redirect(url_for("main.login"))
+
+    # Gestion du paramètre `limit`
+    try:
+        limit = int(request.args.get("limit", 10))
+        if limit < 1 or limit > 50:
+            raise ValueError
+    except ValueError:
+        flash("Le paramètre 'limit' doit être un entier entre 1 et 50.", "warning")
+        limit = 10  # Valeur par défaut
+
+    # Initialisation des données du tableau de bord
+    dashboard_data = {
+        "articles_by_source": [],
+        "articles_by_keywords": [],
+        "scientific_articles_by_keywords": [],
+        "latest_videos": [],
+        "trending_keywords": {},
+        "articles_count": 0,
+        "videos_count": 0,
+        "scientific_articles_count": 0
+    }
+
+    # Fonction pour récupérer les données de l'API avec gestion des erreurs
+    def fetch_api_data(endpoint):
+        try:
+            response = requests.get(f"{API_URL}{endpoint}", headers=headers)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            flash(f"Erreur de connexion à {endpoint}: {str(e)}", "danger")
+            return None
+
+    # Récupération des données du dashboard
+    dashboard_response = fetch_api_data(f"/dashboard?limit={limit}")
+    if dashboard_response:
+        dashboard_data.update(dashboard_response)
+
+        # Calcul du nombre d'articles, vidéos et articles scientifiques
+        dashboard_data["articles_count"] = len(dashboard_data["articles_by_source"]) + len(dashboard_data["articles_by_keywords"])
+        dashboard_data["videos_count"] = len(dashboard_data["latest_videos"])
+        dashboard_data["scientific_articles_count"] = len(dashboard_data["scientific_articles_by_keywords"])
+
+        # Fusionner les articles de `articles_by_source` et `articles_by_keywords` en supprimant les doublons
+        all_articles = dashboard_data["articles_by_source"] + dashboard_data["articles_by_keywords"]
+        unique_articles = {article['link']: article for article in all_articles}  # Utiliser 'link' pour garantir l'unicité
+        dashboard_data["unique_articles"] = list(unique_articles.values())  # Remplacer par la liste des articles uniques
+
+    # Transformation des tendances des mots-clés en format graphique
+    trending_data = dashboard_data.get("trending_keywords", [])
+    keyword_trends = {}
+
+    for entry in trending_data:
+        keyword = entry["keyword"]
+        date = entry["date"]  # On suppose que la réponse API inclut des occurrences par jour
+        count = entry["count"]
+
+        if keyword not in keyword_trends:
+            keyword_trends[keyword] = {}
+
+        keyword_trends[keyword][date] = count
+
+    # Reformater pour l'affichage en JSON (dates triées)
+    for keyword, data in keyword_trends.items():
+        sorted_dates = sorted(data.keys())
+        dashboard_data["trending_keywords"][keyword] = [{"date": date, "count": data[date]} for date in sorted_dates]
+
+    return render_template("dashboard.html", dashboard=dashboard_data, limit=limit)
 
 
 @main.route("/resources")
@@ -245,3 +314,80 @@ def metrics():
         flash("Erreur de connexion au serveur.", "danger")
 
     return render_template("metrics.html", metrics=metrics_data)
+
+
+@main.route("/user_preferences", methods=["GET", "POST"])
+def user_preferences():
+    """Gère l'affichage, la modification et la suppression des préférences utilisateur."""
+    headers = get_headers()
+    if not headers:
+        return redirect(url_for("main.login"))
+
+    def fetch_data_from_api(url, headers, default_value=None):
+        """Récupère les données depuis l'API et gère les erreurs."""
+        try:
+            response = requests.get(url, headers=headers)
+            if response.status_code == 200:
+                data = response.json()
+                return data
+            else:
+                flash(f"Erreur lors de la récupération des données ({response.status_code})", "danger")
+                return default_value
+        except requests.exceptions.RequestException as e:
+            flash(f"Erreur de connexion à {url}: {str(e)}", "danger")
+            return default_value
+
+    # Récupérer les filtres disponibles (sources, vidéos, mots-clés)
+    filters_data = fetch_data_from_api(f"{API_URL}/preferences/user-preferences", headers, {"sources": [], "video_channels": [], "keywords": []})
+
+    # Récupérer les préférences utilisateur
+    user_prefs = fetch_data_from_api(f"{API_URL}/preferences/user-preferences", headers, {})
+
+    if request.method == "POST":
+        if "delete_action" in request.form:  # Détection d'une suppression via formulaire POST
+            preferences_to_delete = {
+                "source_preferences": request.form.getlist("source_preferences"),
+                "video_channel_preferences": request.form.getlist("video_channel_preferences"),
+                "keyword_preferences": request.form.getlist("keyword_preferences"),
+            }
+
+            try:
+                response = requests.delete(
+                    f"{API_URL}/preferences/user-preferences",
+                    json=preferences_to_delete,
+                    headers=headers
+                )
+
+                if response.status_code == 200:
+                    flash("Préférences supprimées avec succès.", "success")
+                else:
+                    flash(f"Erreur lors de la suppression ({response.status_code})", "danger")
+            except requests.exceptions.RequestException as e:
+                flash(f"Erreur de connexion au serveur: {e}", "danger")
+
+            return redirect(url_for("main.user_preferences"))
+
+        else:  # Cas normal de mise à jour des préférences
+            preferences_data = {
+                "source_preferences": request.form.getlist("source_preferences"),
+                "video_channel_preferences": request.form.getlist("video_channel_preferences"),
+                "keyword_preferences": request.form.getlist("keyword_preferences"),
+            }
+
+            try:
+                response = requests.post(f"{API_URL}/preferences/user-preferences", json=preferences_data, headers=headers)
+
+                if response.status_code == 200:
+                    flash("Préférences mises à jour avec succès.", "success")
+                else:
+                    flash(f"Erreur lors de la mise à jour ({response.status_code})", "danger")
+            except requests.exceptions.RequestException:
+                flash("Erreur de connexion au serveur.", "danger")
+
+            return redirect(url_for("main.user_preferences"))
+
+    return render_template(
+        "user_preferences.html",
+        preferences=user_prefs,
+        filters=filters_data
+    )
