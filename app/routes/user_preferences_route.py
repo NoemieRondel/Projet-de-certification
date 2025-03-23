@@ -17,23 +17,18 @@ class UserPreferencesUpdate(BaseModel):
 def get_available_filters():
     """Récupère les valeurs autorisées pour les sources, chaînes vidéo et mots-clés."""
     with closing(get_connection()) as conn, conn.cursor(dictionary=True) as cursor:
-        # Récupérer les sources de la table articles
         cursor.execute("SELECT DISTINCT source FROM articles")
         sources = [row["source"] for row in cursor.fetchall()]
 
-        # Récupérer les noms de chaînes de la table videos
         cursor.execute("SELECT DISTINCT channel_name FROM videos")
         channels = [row["channel_name"] for row in cursor.fetchall()]
 
-        # Récupérer les mots-clés de la table articles
         cursor.execute("SELECT DISTINCT keywords FROM articles WHERE keywords IS NOT NULL")
         article_keywords = [keyword for row in cursor.fetchall() for keyword in row["keywords"].split(';')]
 
-        # Récupérer les mots-clés de la table scientific_articles
         cursor.execute("SELECT DISTINCT keywords FROM scientific_articles WHERE keywords IS NOT NULL")
         scientific_article_keywords = [keyword for row in cursor.fetchall() for keyword in row["keywords"].split(';')]
 
-        # Fusionner et nettoyer les doublons
         keywords = list(set(article_keywords + scientific_article_keywords))
 
     return {"articles": sources, "videos": channels, "keywords": keywords}
@@ -42,10 +37,10 @@ def get_available_filters():
 @router.get("/user-preferences")
 def get_user_preferences(user=Depends(jwt_required)):
     """Récupère les préférences de l'utilisateur + les options disponibles."""
-
     user_id = user.get("user_id")
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid token: user_id not found")
+
     available_filters = get_available_filters()
 
     with closing(get_connection()) as conn, conn.cursor(dictionary=True) as cursor:
@@ -70,10 +65,10 @@ def get_user_preferences(user=Depends(jwt_required)):
 @router.post("/user-preferences")
 def update_user_preferences(user=Depends(jwt_required), preferences: UserPreferencesUpdate = Depends()):
     """Met à jour les préférences utilisateur après validation stricte."""
-
     user_id = user.get("user_id")
     if not user_id:
-        raise HTTPException(status_code=401, detail="Invalid token: user_id not found")  # Récupération de l'ID utilisateur depuis le JWT
+        raise HTTPException(status_code=401, detail="Invalid token: user_id not found")
+
     valid_filters = get_available_filters()
 
     def validate_choices(choices, valid_list, category):
@@ -87,24 +82,20 @@ def update_user_preferences(user=Depends(jwt_required), preferences: UserPrefere
     validate_choices(preferences.keyword_preferences, valid_filters["keywords"], "keyword_preferences")
 
     with closing(get_connection()) as conn, conn.cursor(dictionary=True) as cursor:
-        # Récupérer les préférences existantes
         cursor.execute(
             "SELECT source_preferences, video_channel_preferences, keyword_preferences FROM user_preferences WHERE user_id = %s",
             (user_id,)
         )
         existing_prefs = cursor.fetchone()
 
-        # Convertir les valeurs en listes (si elles existent)
         existing_sources = existing_prefs["source_preferences"].split(";") if existing_prefs and existing_prefs["source_preferences"] else []
         existing_videos = existing_prefs["video_channel_preferences"].split(";") if existing_prefs and existing_prefs["video_channel_preferences"] else []
         existing_keywords = existing_prefs["keyword_preferences"].split(";") if existing_prefs and existing_prefs["keyword_preferences"] else []
 
-        # Fusionner les préférences existantes avec les nouvelles (en évitant les doublons)
         updated_sources = list(set(existing_sources + (preferences.source_preferences or [])))
         updated_videos = list(set(existing_videos + (preferences.video_channel_preferences or [])))
         updated_keywords = list(set(existing_keywords + (preferences.keyword_preferences or [])))
 
-        # Convertir en format pour la base de données (chaîne séparée par des ";")
         source_prefs = ";".join(updated_sources) if updated_sources else None
         video_prefs = ";".join(updated_videos) if updated_videos else None
         keyword_prefs = ";".join(updated_keywords) if updated_keywords else None
@@ -125,3 +116,52 @@ def update_user_preferences(user=Depends(jwt_required), preferences: UserPrefere
         conn.commit()
 
     return {"message": "Préférences mises à jour avec succès"}
+
+
+@router.delete("/user-preferences")
+def delete_user_preferences(user=Depends(jwt_required), preferences: UserPreferencesUpdate = Depends()):
+    """Supprime certaines préférences utilisateur ou toutes si aucun filtre n'est fourni."""
+    user_id = user.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid token: user_id not found")
+
+    with closing(get_connection()) as conn, conn.cursor(dictionary=True) as cursor:
+        cursor.execute(
+            "SELECT source_preferences, video_channel_preferences, keyword_preferences FROM user_preferences WHERE user_id = %s",
+            (user_id,)
+        )
+        existing_prefs = cursor.fetchone()
+
+        if not existing_prefs:
+            raise HTTPException(status_code=404, detail="Aucune préférence trouvée pour cet utilisateur.")
+
+        existing_sources = existing_prefs["source_preferences"].split(";") if existing_prefs["source_preferences"] else []
+        existing_videos = existing_prefs["video_channel_preferences"].split(";") if existing_prefs["video_channel_preferences"] else []
+        existing_keywords = existing_prefs["keyword_preferences"].split(";") if existing_prefs["keyword_preferences"] else []
+
+        if preferences.source_preferences:
+            existing_sources = [s for s in existing_sources if s not in preferences.source_preferences]
+        if preferences.video_channel_preferences:
+            existing_videos = [v for v in existing_videos if v not in preferences.video_channel_preferences]
+        if preferences.keyword_preferences:
+            existing_keywords = [k for k in existing_keywords if k not in preferences.keyword_preferences]
+
+        if not preferences.source_preferences and not preferences.video_channel_preferences and not preferences.keyword_preferences:
+            cursor.execute(
+                "DELETE FROM user_preferences WHERE user_id = %s",
+                (user_id,)
+            )
+        else:
+            cursor.execute(
+                "UPDATE user_preferences SET source_preferences = %s, video_channel_preferences = %s, keyword_preferences = %s WHERE user_id = %s",
+                (
+                    ";".join(existing_sources) if existing_sources else None,
+                    ";".join(existing_videos) if existing_videos else None,
+                    ";".join(existing_keywords) if existing_keywords else None,
+                    user_id
+                )
+            )
+
+        conn.commit()
+
+    return {"message": "Préférences mises à jour après suppression"}
