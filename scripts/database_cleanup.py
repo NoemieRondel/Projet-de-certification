@@ -61,7 +61,6 @@ def delete_invalid_links(cursor):
         logging.info(f"{len(invalid_links)} article(s) supprimé(s) pour liens invalides.")
 
 
-
 def delete_empty_articles(cursor):
     """Supprime les articles avec des champs critiques manquants."""
     cursor.execute("""
