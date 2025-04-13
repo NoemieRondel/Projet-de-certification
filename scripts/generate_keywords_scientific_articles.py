@@ -122,7 +122,7 @@ with open(JSON_FILE, "w", encoding="utf-8") as json_file:
 end_time = datetime.now()
 duration = (end_time - start_time).total_seconds()
 total_articles = len(articles)
-empty_abstracts = sum(1 for a in articles if not a.get("abstract", "").strip())
+empty_abstracts = sum(1 for a in articles if not (a.get("abstract", "") or"").strip())
 average_keywords = sum(len(a.get("keywords", "").split(";")) for a in articles) / total_articles if total_articles else 0
 
 monitoring_data = {
