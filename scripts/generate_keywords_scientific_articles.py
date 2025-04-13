@@ -83,9 +83,19 @@ def extract_keywords(text, embeddings, candidates, threshold):
         return []
     text_embedding = model.encode(text, convert_to_tensor=True)
     cosine_scores = util.cos_sim(text_embedding, embeddings)[0]
-    filtered_terms = [candidates[i] for i in range(len(cosine_scores)) if cosine_scores[i] > threshold]
-    sorted_terms = [candidates[i] for i in cosine_scores.argsort(descending=True)]
-    return sorted_terms[:MAX_KEYWORDS]
+
+    # Crée une liste de tuples (score, index) pour faciliter le tri
+    scored_candidates = [(cosine_scores[i], candidates[i]) for i in range(len(candidates))]
+
+    # Filtre les termes dont le score est supérieur au seuil
+    filtered_scored_candidates = [item for item in scored_candidates if item[0] > threshold]
+
+    # Trie les termes filtrés par score de similarité décroissant
+    sorted_filtered_candidates = sorted(filtered_scored_candidates, key=lambda item: item[0], reverse=True)
+
+    # Retourne les MAX_KEYWORDS premiers termes (si la liste n'est pas vide)
+    return [term for score, term in sorted_filtered_candidates[:MAX_KEYWORDS]]
+
 
 # Chargement des articles
 logging.info(f"Chargement des articles depuis {JSON_FILE}.")
