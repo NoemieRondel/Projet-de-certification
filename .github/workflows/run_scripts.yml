@@ -30,9 +30,9 @@ jobs:
     # 4. Lancer les tests pytest
     - name: Run pytest tests
       run: |
-        pytest tests\test_generate_summaries.py
-        pytest tests\test_generate_keywords.py
-        pytest tests\test_generate_keywords_scientific_articles.py
+        pytest tests/test_generate_summaries.py
+        pytest tests/test_generate_keywords.py
+        pytest tests/test_generate_keywords_scientific_articles.py
       continue-on-error: true # Continue même si l'un des scripts échoue
         
 
