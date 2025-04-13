@@ -68,9 +68,19 @@ def login():
 
 @main.route("/logout")
 def logout():
-    """Déconnecte l'utilisateur."""
+    """Déconnecte l'utilisateur et invalide le token côté serveur si nécessaire."""
+    headers = get_headers()
+
+    if headers:  # Vérifier si l'utilisateur est bien connecté avant de tenter une requête
+        try:
+            requests.post(f"{API_URL}/auth/logout", headers=headers)  # Si l'API supporte une déconnexion
+        except requests.exceptions.RequestException:
+            flash("Erreur lors de la déconnexion côté serveur.", "warning")
+
     session.pop("token", None)
-    return redirect(url_for("main.login"))
+    flash("Vous avez été déconnecté avec succès.", "info")
+
+    return render_template("index.html")
 
 
 @main.route("/dashboard")
@@ -80,7 +90,7 @@ def dashboard():
     if not headers:
         return redirect(url_for("main.login"))
 
-    # Gestion du paramètre `limit`
+    # Gestion des paramètres `limit` et `days_range`
     try:
         limit = int(request.args.get("limit", 10))
         if limit < 1 or limit > 50:
@@ -89,13 +99,21 @@ def dashboard():
         flash("Le paramètre 'limit' doit être un entier entre 1 et 50.", "warning")
         limit = 10  # Valeur par défaut
 
+    try:
+        days_range = int(request.args.get("days_range", 90))  # Par défaut 90 jours
+        if days_range < 7 or days_range > 365:
+            raise ValueError
+    except ValueError:
+        flash("Le paramètre 'days_range' doit être un entier entre 7 et 365.", "warning")
+        days_range = 90  # Valeur par défaut
+
     # Initialisation des données du tableau de bord
     dashboard_data = {
         "articles_by_source": [],
         "articles_by_keywords": [],
         "scientific_articles_by_keywords": [],
         "latest_videos": [],
-        "trending_keywords": {},
+        "trending_keywords": [],
         "articles_count": 0,
         "videos_count": 0,
         "scientific_articles_count": 0
@@ -112,40 +130,26 @@ def dashboard():
             return None
 
     # Récupération des données du dashboard
-    dashboard_response = fetch_api_data(f"/dashboard?limit={limit}")
+    dashboard_response = fetch_api_data(f"/dashboard?limit={limit}&days_range={days_range}")
     if dashboard_response:
         dashboard_data.update(dashboard_response)
 
-        # Calcul du nombre d'articles, vidéos et articles scientifiques
-        dashboard_data["articles_count"] = len(dashboard_data["articles_by_source"]) + len(dashboard_data["articles_by_keywords"])
-        dashboard_data["videos_count"] = len(dashboard_data["latest_videos"])
-        dashboard_data["scientific_articles_count"] = len(dashboard_data["scientific_articles_by_keywords"])
-
-        # Fusionner les articles de `articles_by_source` et `articles_by_keywords` en supprimant les doublons
+        # Fusionner les articles de 'articles_by_source' et 'articles_by_keywords' en supprimant les doublons
         all_articles = dashboard_data["articles_by_source"] + dashboard_data["articles_by_keywords"]
         unique_articles = {article['link']: article for article in all_articles}  # Utiliser 'link' pour garantir l'unicité
         dashboard_data["unique_articles"] = list(unique_articles.values())  # Remplacer par la liste des articles uniques
 
-    # Transformation des tendances des mots-clés en format graphique
-    trending_data = dashboard_data.get("trending_keywords", [])
-    keyword_trends = {}
+        # Préparer les données pour le graphique des tendances
+        trending_keywords_by_date = {}
+        for entry in dashboard_data["trending_keywords"]:
+            date = entry["date"]
+            keywords = entry["keywords"]
+            trending_keywords_by_date[date] = {kw["keyword"]: kw["count"] for kw in keywords}
 
-    for entry in trending_data:
-        keyword = entry["keyword"]
-        date = entry["date"]  # On suppose que la réponse API inclut des occurrences par jour
-        count = entry["count"]
+        # Ajouter au contexte
+        dashboard_data["trending_keywords_chart"] = trending_keywords_by_date
 
-        if keyword not in keyword_trends:
-            keyword_trends[keyword] = {}
-
-        keyword_trends[keyword][date] = count
-
-    # Reformater pour l'affichage en JSON (dates triées)
-    for keyword, data in keyword_trends.items():
-        sorted_dates = sorted(data.keys())
-        dashboard_data["trending_keywords"][keyword] = [{"date": date, "count": data[date]} for date in sorted_dates]
-
-    return render_template("dashboard.html", dashboard=dashboard_data, limit=limit)
+    return render_template("dashboard.html", dashboard=dashboard_data, limit=limit, days_range=days_range)
 
 
 @main.route("/resources")
@@ -391,3 +395,63 @@ def user_preferences():
         preferences=user_prefs,
         filters=filters_data
     )
+
+
+@main.route("/delete_account", methods=["DELETE"])
+def delete_account():
+    print("DELETE /delete_account appelé !")  # Ajoute un log
+    headers = get_headers()
+    if not headers:
+        print("Aucun header trouvé !")
+        flash("Vous devez être connecté pour supprimer votre compte.", "warning")
+        return redirect(url_for("main.login"))
+
+    try:
+        response = requests.delete(f"{API_URL}/users/me", headers=headers)
+        print("Requête envoyée à l'API, statut :", response.status_code)
+
+        if response.status_code == 200:
+            session.pop("token", None)
+            flash("Votre compte a été supprimé avec succès.", "info")
+            return redirect(url_for("main.home"), code=303)
+
+        print("Erreur API :", response.text)
+        flash("Erreur lors de la suppression du compte. Veuillez réessayer.", "danger")
+    except requests.exceptions.RequestException as e:
+        print("Erreur connexion API :", e)
+        flash("Erreur de connexion au serveur. Veuillez réessayer.", "danger")
+
+    return redirect(url_for("main.dashboard"))
+
+
+@main.route("/forgot_password", methods=["GET", "POST"])
+def forgot_password():
+    """Formulaire pour demander une réinitialisation de mot de passe."""
+    if request.method == "POST":
+        email = request.form.get("email")
+
+        response = requests.post(f"{API_URL}/auth/forgot_password", json={"email": email})
+
+        if response.status_code == 200:
+            flash("Si cet email existe, un lien de réinitialisation a été envoyé.", "info")
+        else:
+            flash("Erreur lors de la demande de réinitialisation.", "danger")
+
+    return render_template("forgot_password.html")
+
+
+@main.route("/reset_password/<reset_token>", methods=["GET", "POST"])
+def reset_password(reset_token):
+    """Formulaire pour saisir un nouveau mot de passe après avoir cliqué sur le lien."""
+    if request.method == "POST":
+        new_password = request.form.get("password")
+
+        response = requests.post(f"{API_URL}/auth/reset_password/{reset_token}", json={"new_password": new_password, "reset_token": reset_token})
+
+        if response.status_code == 200:
+            flash("Votre mot de passe a été réinitialisé avec succès.", "success")
+            return redirect(url_for("main.login"))
+
+        flash("Le lien est invalide ou expiré.", "danger")
+
+    return render_template("reset_password.html", reset_token=reset_token)

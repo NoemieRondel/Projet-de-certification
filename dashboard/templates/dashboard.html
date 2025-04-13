@@ -14,7 +14,6 @@
         </select>
         <button type="submit" class="btn btn-primary ms-2">Appliquer</button>
     </form>
-    
 
     <!-- Statistiques globales -->
     <div class="row mb-4">
@@ -44,13 +43,13 @@
         </div>
     </div>
 
-    <!-- Section des articles (par source et par mots-clés, sans doublons) -->
+    <!-- Section des articles récents -->
     <h2>📰 Articles récents</h2>
     <ul class="list-group mb-4">
         {% for article in dashboard.unique_articles %}
             <li class="list-group-item">
                 <a href="{{ article.link }}" target="_blank">{{ article.title }}</a>
-                <small class="text-muted">({{ article.source }}, {{ article.publication_date }}, {{article.keywords}})</small>
+                <small class="text-muted">({{ article.source }}, {{ article.publication_date }}, {{ article.keywords }})</small>
             </li>
         {% else %}
             <li class="list-group-item text-muted">Aucun article récent</li>
@@ -63,7 +62,7 @@
         {% for article in dashboard.scientific_articles_by_keywords %}
             <li class="list-group-item">
                 <a href="{{ article.article_url }}" target="_blank">{{ article.title }}</a>
-                <small class="text-muted">({{ article.authors}},{{ article.publication_date }}, {{ article.keywords }})</small>
+                <small class="text-muted">({{ article.authors }}, {{ article.publication_date }}, {{ article.keywords }})</small>
             </li>
         {% else %}
             <li class="list-group-item text-muted">Aucun article scientifique récent</li>
@@ -83,5 +82,64 @@
         {% endfor %}
     </ul>
 
+    <!-- Section des tendances des mots-clés -->
+    <h2>📈 Tendances des mots-clés</h2>
+    {% if dashboard.trending_keywords %}
+        <div class="mt-4">
+            <canvas id="keywordChart" style="height: 400px;"></canvas>
+        </div>
+    {% else %}
+        <p class="text-muted">Aucune tendance détectée récemment.</p>
+    {% endif %}
 </div>
+
+<!-- Script pour afficher le graphique des tendances -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        var ctx = document.getElementById("keywordChart").getContext("2d");
+        var trendingData = {{ dashboard.trending_keywords | tojson }};
+
+        if (trendingData.length > 0) {
+            var labels = [];
+            var counts = [];
+
+            trendingData.forEach(entry => {
+                entry.keywords.forEach(keyword => {
+                    let index = labels.indexOf(keyword.keyword);
+                    if (index === -1) {
+                        labels.push(keyword.keyword);
+                        counts.push(keyword.count);
+                    } else {
+                        counts[index] += keyword.count;
+                    }
+                });
+            });
+
+            new Chart(ctx, {
+                type: "bar",
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: "Occurrences",
+                        data: counts,
+                        backgroundColor: "rgba(75, 192, 192, 0.6)",
+                        borderColor: "rgba(75, 192, 192, 1)",
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        }
+    });
+</script>
+
 {% endblock %}

@@ -11,7 +11,7 @@
     
     <!-- Styles personnalisés -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    
+
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -49,6 +49,22 @@
         .btn-primary:hover {
             background-color: #cc5500;
         }
+
+        /* Style du bouton de déconnexion */
+        .logout-btn {
+            background-color: #ff6600;
+            color: white !important;
+            font-weight: bold;
+            border-radius: 5px;
+            padding: 8px 15px;
+            transition: 0.3s;
+        }
+
+        /* Force la couleur blanche sur le texte au survol */
+        .navbar .logout-btn:hover {
+            background-color: #ff6600 !important;
+            color: white !important;
+        }
     </style>
 </head>
 <body>
@@ -69,6 +85,15 @@
                     <li class="nav-item"><a class="nav-link" href="{{ url_for('main.search') }}">Recherche</a></li>
                     <li class="nav-item"><a class="nav-link" href="{{ url_for('main.metrics') }}">Indicateurs</a></li>
                     <li class="nav-item"><a class="nav-link" href="{{ url_for('main.user_preferences') }}">Personnalisation</a></li>
+                </ul>
+
+                <!-- Bouton de déconnexion bien visible -->
+                <ul class="navbar-nav ms-3">
+                    <li class="nav-item">
+                        <a class="nav-link logout-btn" href="{{ url_for('main.logout') }}">
+                            Se déconnecter
+                        </a>
+                    </li>
                 </ul>
             </div>
         </div>

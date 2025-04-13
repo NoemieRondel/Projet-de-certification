@@ -3,7 +3,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from app.routes import (
     articles_route, videos_route, scientific_articles_route,
     metrics_route, trends_route, auth_route, user_preferences_route,
-    dashboard_route
+    dashboard_route, user_delete_route, forgot_password_route, reset_password_route
 )
 from app.security.jwt_handler import jwt_required
 import logging
@@ -28,6 +28,11 @@ protected_routes = [
     (user_preferences_route.router, "/preferences", "User Preferences"),
     (dashboard_route.router, "/dashboard", "Dashboard")
 ]
+
+# Routes protégées pour la suppression de l'utilisateur ou le reset de mot de passe
+app.include_router(user_delete_route.router, prefix="/users", tags=["User"], dependencies=[Depends(jwt_required)])
+app.include_router(forgot_password_route.router, prefix="/auth", tags=["Auth"])
+app.include_router(reset_password_route.router, prefix="/auth", tags=["Auth"])
 
 for router, prefix, tag in protected_routes:
     app.include_router(router, prefix=prefix, tags=[tag], dependencies=[Depends(jwt_required)])
