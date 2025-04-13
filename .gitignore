@@ -4,3 +4,4 @@ app/__pycache__
 app/routes/__pycache__
 app/security/__pycache__
 dashboard/__pycache__
+tests/__pycache__
