@@ -21,6 +21,7 @@ debugpy==1.8.11
 decorator==5.1.1
 en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl#sha256=1932429db727d4bff3deed6b34cfc05df17794f4a52eeb26cf8928f7c1a0fb85
 executing==2.1.0
+fastapi
 feedparser==6.0.11
 filelock==3.16.1
 flask
@@ -31,6 +32,7 @@ gast==0.6.0
 google-pasta==0.2.0
 greenlet==3.1.1
 h11==0.14.0
+httpx
 huggingface-hub==0.27.0
 idna==3.10
 ipykernel==6.29.5
@@ -74,6 +76,7 @@ pydantic_core==2.27.1
 Pygments==2.18.0
 pyparsing==3.2.1
 pysocks==1.7.1
+pytest
 python-dateutil==2.9.0.post0
 python-dotenv==1.0.1
 pytz==2024.2
