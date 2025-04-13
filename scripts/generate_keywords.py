@@ -1,13 +1,42 @@
 import os
 import json
 import logging
+from datetime import datetime
 from sentence_transformers import SentenceTransformer, util
 
 # Configuration du logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Charger le modèle pré-entraîné pour la similarité sémantique
-logging.info("Chargement du modèle pré-entraîné pour la similarité sémantique.")
+# Chemins des fichiers
+JSON_FILE = "articles.json"
+MONITORING_FILE = "monitoring_articles_metrics.json"
+
+# Début du timer
+start_time = datetime.now()
+
+
+# Fonction pour enregistrer les métriques dans un fichier centralisé
+def save_monitoring_entry(script_name, data):
+    if os.path.exists("monitoring.json"):
+        with open("monitoring.json", "r", encoding="utf-8") as f:
+            monitoring = json.load(f)
+    else:
+        monitoring = {"entries": []}
+
+    timestamp = datetime.now().isoformat()
+    entry = {
+        "timestamp": timestamp,
+        "script": script_name,
+        **data
+    }
+    monitoring["entries"].append(entry)
+
+    with open("monitoring.json", "w", encoding="utf-8") as f:
+        json.dump(monitoring, f, indent=4)
+
+
+# Chargement du modèle
+logging.info("Chargement du modèle pré-entraîné.")
 model = SentenceTransformer('all-MiniLM-L6-v2')
 
 # Liste fusionnée des mots-clés (techniques et généralistes)
@@ -60,66 +89,70 @@ keyword_list = [
 ]
 
 
-# Embedding des mots-clés pour comparaison
+# Encodage des mots-clés
 logging.info("Encodage des mots-clés pour la comparaison.")
 keyword_embeddings = model.encode(keyword_list, convert_to_tensor=True)
 
-# Limite des mots-clés et seuil de similarité
+# Paramètres de filtrage
 MAX_KEYWORDS = 15
 SIMILARITY_THRESHOLD = 0.2
 
 
-# Fonction pour extraire les mots-clés les plus pertinents
+# Fonction d'extraction
 def extract_keywords(text, embeddings, candidates, threshold):
     if not text or not text.strip():
-        return ""
+        return []
 
-    # Encodage du texte et calcul de la similarité
-    logging.info("Encodage du texte et calcul de la similarité.")
+    logging.info("Encodage du texte et calcul des similarités.")
     text_embedding = model.encode(text, convert_to_tensor=True)
     cosine_scores = util.cos_sim(text_embedding, embeddings)[0]
 
-    # Filtrer les termes avec un seuil de similarité
     filtered_terms = [
         candidates[i] for i in range(len(cosine_scores)) if cosine_scores[i] > threshold
     ]
 
-    # Trier les termes par pertinence
     sorted_terms = [candidates[i] for i in cosine_scores.argsort(descending=True)]
     return sorted_terms[:MAX_KEYWORDS]
 
-
-# Chemin du fichier JSON
-json_file_path = "articles.json"
-
-# Charger les données depuis le fichier JSON
-if os.path.exists(json_file_path):
-    logging.info(f"Chargement des données depuis {json_file_path}.")
-    with open(json_file_path, "r", encoding="utf-8") as file:
+# Chargement du fichier JSON
+logging.info(f"Chargement des données depuis le fichier {JSON_FILE}.")
+if os.path.exists(JSON_FILE):
+    with open(JSON_FILE, "r", encoding="utf-8") as file:
         articles = json.load(file)
 else:
-    logging.error(f"Le fichier {json_file_path} est introuvable.")
+    logging.error(f"Le fichier {JSON_FILE} est introuvable.")
     articles = []
 
-# Enrichissement des mots-clés pour chaque article
-logging.info("Enrichissement des mots-clés pour chaque article.")
+# Enrichissement des articles
+logging.info("Début de l’enrichissement des mots-clés.")
 for article in articles:
     full_content = article.get("full_content", "")
     current_keywords = article.get("keywords", "")
 
-    # Vérifier si les mots-clés doivent être générés (champ vide ou inexistant)
     if not current_keywords:
         logging.info(f"Traitement de l'article : {article.get('title', 'Sans titre')}")
-
-        # Extraire les mots-clés à partir du contenu complet
         new_keywords = extract_keywords(full_content, keyword_embeddings, keyword_list, SIMILARITY_THRESHOLD)
-
-        # Ajouter les mots-clés au JSON
         article["keywords"] = ";".join(sorted(set(new_keywords)))
 
-# Sauvegarder les données mises à jour dans le fichier JSON
-logging.info(f"Sauvegarde des données mises à jour dans {json_file_path}.")
-with open(json_file_path, "w", encoding="utf-8") as file:
+# Sauvegarde des articles enrichis
+logging.info(f"Sauvegarde des articles enrichis dans {JSON_FILE}.")
+with open(JSON_FILE, "w", encoding="utf-8") as file:
     json.dump(articles, file, indent=4, ensure_ascii=False)
 
-logging.info("Enrichissement des mots-clés terminé. Fichier JSON mis à jour.")
+# Calcul des métriques de monitoring
+end_time = datetime.now()
+duration = (end_time - start_time).total_seconds()
+total_articles = len(articles)
+empty_contents = sum(1 for a in articles if not a.get("full_content", "").strip())
+average_keywords = sum(len(a.get("keywords", "").split(";")) for a in articles) / total_articles if total_articles else 0
+
+monitoring_data = {
+    "timestamp": datetime.now().isoformat(),
+    "duration_seconds": round(duration, 2),
+    "articles_count": total_articles,
+    "empty_full_content_count": empty_contents,
+    "average_keywords_per_article": round(average_keywords, 2)
+}
+
+save_monitoring_entry("extract_keywords", monitoring_data)
+logging.info("Monitoring mis à jour dans monitoring.json.")
