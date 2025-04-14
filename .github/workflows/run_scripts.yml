@@ -85,3 +85,4 @@ jobs:
           articles.json
           videos.json
           arxiv_articles.json
+          monitoring.json
