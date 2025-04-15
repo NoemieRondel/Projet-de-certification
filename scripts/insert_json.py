@@ -31,13 +31,9 @@ def connect_to_database():
 
 # Normaliser les formats de date
 def normalize_date_format(date_string):
-    """
-    Convertit une date donnée dans un format standardisé 'YYYY-MM-DD'.
-    """
     if not date_string:
         return None
     try:
-        # Détecte automatiquement le format et normalise en 'YYYY-MM-DD'
         parsed_date = datetime.fromisoformat(date_string)
         return parsed_date.strftime("%Y-%m-%d")
     except ValueError:
@@ -54,11 +50,14 @@ def load_json_file(file_path):
     try:
         with open(file_path, "r", encoding="utf-8") as file:
             data = json.load(file)
-        print(f"{len(data)} enregistrements chargés depuis {file_path}.")
-        # Normalisation des formats de date
-        for item in data:
-            if "publication_date" in item:
-                item["publication_date"] = normalize_date_format(item["publication_date"])
+        print(f"{len(data) if isinstance(data, list) else 1} enregistrements chargés depuis {file_path}.")
+        # Normalisation des dates pour les formats articles / scientifiques / vidéos
+        if isinstance(data, list):
+            for item in data:
+                if "publication_date" in item:
+                    item["publication_date"] = normalize_date_format(item["publication_date"])
+        elif isinstance(data, dict) and "publication_date" in data:
+            data["publication_date"] = normalize_date_format(data["publication_date"])
         return data
     except FileNotFoundError:
         print(f"Le fichier {file_path} n'existe pas.")
@@ -68,9 +67,11 @@ def load_json_file(file_path):
         return []
 
 
-# Insérer ou mettre à jour les données dans la base
+# Insérer ou mettre à jour les données
 def insert_or_update_data(table_name, data, connection):
     cursor = connection.cursor()
+    inserted = 0
+    updated = 0
 
     if table_name == "articles":
         query_check = "SELECT COUNT(*) FROM articles WHERE link = %s"
@@ -80,9 +81,8 @@ def insert_or_update_data(table_name, data, connection):
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         query_update = """
-            UPDATE articles
-            SET title = %s, source = %s, publication_date = %s, summary = %s,
-            full_content = %s, language = %s, author = %s, keywords = %s
+            UPDATE articles SET title = %s, source = %s, publication_date = %s,
+            summary = %s, full_content = %s, language = %s, author = %s, keywords = %s
             WHERE link = %s
         """
     elif table_name == "scientific_articles":
@@ -93,9 +93,8 @@ def insert_or_update_data(table_name, data, connection):
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """
         query_update = """
-            UPDATE scientific_articles
-            SET title = %s, authors = %s, publication_date = %s, abstract = %s,
-            keywords = %s, source = %s, article_url = %s
+            UPDATE scientific_articles SET title = %s, authors = %s, publication_date = %s,
+            abstract = %s, keywords = %s, source = %s, article_url = %s
             WHERE external_id = %s
         """
     elif table_name == "videos":
@@ -106,8 +105,7 @@ def insert_or_update_data(table_name, data, connection):
             VALUES (%s, %s, %s, %s, %s, %s, %s)
         """
         query_update = """
-            UPDATE videos
-            SET title = %s, description = %s, publication_date = %s,
+            UPDATE videos SET title = %s, description = %s, publication_date = %s,
             source = %s, channel_name = %s, channel_id = %s
             WHERE video_url = %s
         """
@@ -115,11 +113,7 @@ def insert_or_update_data(table_name, data, connection):
         print(f"Table inconnue : {table_name}")
         return
 
-    # Traitement des données
-    inserted = 0
-    updated = 0
     for item in data:
-        # Identifier la clé unique en fonction de la table
         unique_key = None
         if table_name == "articles":
             unique_key = item.get("link")
@@ -132,12 +126,10 @@ def insert_or_update_data(table_name, data, connection):
             print(f"Enregistrement ignoré (clé unique manquante) : {item}")
             continue
 
-        # Vérification de l'existence
         cursor.execute(query_check, (unique_key,))
         exists = cursor.fetchone()[0] > 0
 
         if exists:
-            # Mise à jour
             if table_name == "articles":
                 cursor.execute(query_update, (
                     item.get("title"), item.get("source"), item.get("publication_date"),
@@ -158,7 +150,6 @@ def insert_or_update_data(table_name, data, connection):
                 ))
             updated += 1
         else:
-            # Insertion
             if table_name == "articles":
                 cursor.execute(query_insert, (
                     item.get("title"), item.get("source"), item.get("publication_date"),
@@ -183,6 +174,57 @@ def insert_or_update_data(table_name, data, connection):
     cursor.close()
 
 
+# Insertion dans monitoring_logs
+def insert_monitoring_logs(data, connection):
+    cursor = connection.cursor()
+    inserted = 0
+
+    # Vérification si les données sont encapsulées sous la clé 'entries'
+    if isinstance(data, dict) and 'entries' in data:
+        data = data['entries']
+
+    for entry in data:
+        timestamp = entry.get("timestamp")
+        script = entry.get("script")
+
+        if not timestamp or not script:
+            print(f"Entrée ignorée (timestamp ou script manquant) : {entry}")
+            continue
+
+        cursor.execute("""
+            SELECT COUNT(*) FROM monitoring_logs WHERE timestamp = %s AND script = %s
+        """, (timestamp, script))
+        if cursor.fetchone()[0] > 0:
+            continue
+
+        cursor.execute("""
+            INSERT INTO monitoring_logs (
+                timestamp, script, duration_seconds,
+                articles_count, empty_full_content_count, average_keywords_per_article,
+                summaries_generated, average_summary_word_count,
+                scientific_articles_count, empty_abstracts_count, average_keywords_per_scientific_article
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            timestamp,
+            script,
+            entry.get("duration_seconds"),
+            entry.get("articles_count"),
+            entry.get("empty_full_content_count"),
+            entry.get("average_keywords_per_article"),
+            entry.get("summaries_generated"),
+            entry.get("average_summary_word_count"),
+            entry.get("scientific_articles_count"),
+            entry.get("empty_abstracts_count"),
+            entry.get("average_keywords_per_scientific_article")
+        ))
+
+        inserted += 1
+
+    connection.commit()
+    print(f"Table monitoring_logs : {inserted} entrées insérées.")
+    cursor.close()
+
+
 # Fonction principale
 def main():
     connection = connect_to_database()
@@ -190,19 +232,21 @@ def main():
         print("Impossible de se connecter à la base de données. Fin du programme.")
         return
 
-    # Fichiers JSON et tables correspondantes
     json_files_and_tables = {
         "articles.json": "articles",
         "arxiv_articles.json": "scientific_articles",
-        "videos.json": "videos"
+        "videos.json": "videos",
+        "monitoring.json": "monitoring_logs"
     }
 
-    for file_path, table_name in json_files_and_tables.items():
-        data = load_json_file(file_path)
-        if data:
+    for json_file, table_name in json_files_and_tables.items():
+        print(f"Traitement de {json_file}...")
+        data = load_json_file(json_file)
+        if table_name == "monitoring_logs":
+            insert_monitoring_logs(data, connection)
+        else:
             insert_or_update_data(table_name, data, connection)
 
-    connection.close()
     print("Fin du traitement des fichiers JSON.")
 
 
