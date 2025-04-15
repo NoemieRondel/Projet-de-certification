@@ -117,6 +117,11 @@ CREATE TABLE user_preferences (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+ALTER TABLE user_preferences
+ADD COLUMN alert_active BOOLEAN DEFAULT FALSE,
+ADD COLUMN alert_criteria TEXT;
+
+
 
 
 
