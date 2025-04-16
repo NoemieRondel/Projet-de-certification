@@ -1,6 +1,6 @@
 import requests
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
-from datetime import date
+from datetime import date, datetime
 
 main = Blueprint("main", __name__)
 
@@ -17,14 +17,17 @@ def get_headers():
 
 
 def format_dates(data):
-    """Convertit publication_date en string si elle est de type date."""
-    if isinstance(data, list):  # Vérifie si c'est une liste d'objets
+    """Convertit publication_date et timestamp en string si ce sont des objets date ou datetime."""
+    fields = ["publication_date", "timestamp"]
+    if isinstance(data, list):
         for item in data:
-            if "publication_date" in item and isinstance(item["publication_date"], date):
-                item["publication_date"] = item["publication_date"].isoformat()  # Convertir en string
-    elif isinstance(data, dict):  # Vérifie également le cas où data est un dictionnaire
-        if "publication_date" in data and isinstance(data["publication_date"], date):
-            data["publication_date"] = data["publication_date"].isoformat()  # Convertir en string
+            for field in fields:
+                if field in item and isinstance(item[field], (date, datetime)):
+                    item[field] = item[field].isoformat()
+    elif isinstance(data, dict):
+        for field in fields:
+            if field in data and isinstance(data[field], (date, datetime)):
+                data[field] = data[field].isoformat()
     return data
 
 
@@ -313,6 +316,11 @@ def metrics():
         response = requests.get(f"{API_URL}/metrics/scientific-keyword-frequency", headers=headers)
         if response.status_code == 200:
             metrics_data["scientific_keyword_frequency"] = response.json()
+
+        # Ajout des logs de monitoring
+        response = requests.get(f"{API_URL}/metrics/monitoring-logs", headers=headers)
+        if response.status_code == 200:
+            metrics_data["monitoring_logs"] = response.json()
 
     except requests.exceptions.RequestException:
         flash("Erreur de connexion au serveur.", "danger")
