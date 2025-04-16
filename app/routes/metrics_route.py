@@ -4,9 +4,9 @@ from contextlib import closing
 from app.security.jwt_handler import jwt_required
 from typing import List, Dict, Any
 from pydantic import BaseModel
+from datetime import datetime
 
 router = APIRouter()
-
 
 # Modèles de réponse
 
@@ -31,16 +31,18 @@ class TopKeywordsBySourceMetrics(BaseModel):
     count: int
 
 
-# Exemple de route pour les publications par période
-@router.get("/publications-by-period", response_model=List[PublicationsByPeriodMetrics])
-async def get_publications_by_period(user=Depends(jwt_required)):
-    query = """
-        SELECT publication_date, COUNT(*) as count
-        FROM articles
-        GROUP BY publication_date
-        ORDER BY publication_date
-    """
-    return await execute_query(query)
+class MonitoringLog(BaseModel):
+    timestamp: str
+    script: str
+    duration_seconds: float | None = None
+    articles_count: int | None = None
+    empty_full_content_count: int | None = None
+    average_keywords_per_article: float | None = None
+    scientific_articles_count: int | None = None
+    empty_abstracts_count: int | None = None
+    average_keywords_per_scientific_article: float | None = None
+    summaries_generated: int | None = None
+    average_summary_word_count: float | None = None
 
 
 # Nombre d'articles par source
@@ -77,6 +79,29 @@ async def get_videos_by_source(user=Depends(jwt_required)):
         ORDER BY count DESC
     """
     return await execute_query(query)
+
+
+# Monitoring
+@router.get("/monitoring-logs", response_model=List[MonitoringLog])
+async def get_monitoring_logs(user=Depends(jwt_required)):
+    query = """
+        SELECT timestamp, script, duration_seconds, articles_count,
+               empty_full_content_count, average_keywords_per_article,
+               scientific_articles_count, empty_abstracts_count,
+               average_keywords_per_scientific_article,
+               summaries_generated, average_summary_word_count
+        FROM monitoring_logs
+        ORDER BY timestamp DESC
+        LIMIT 100
+    """
+    rows = await execute_query(query)
+
+    # Correction : conversion de timestamp en string
+    for row in rows:
+        if isinstance(row["timestamp"], datetime):
+            row["timestamp"] = row["timestamp"].isoformat()
+
+    return rows
 
 
 # Fonction générique pour la fréquence des mots-clés
