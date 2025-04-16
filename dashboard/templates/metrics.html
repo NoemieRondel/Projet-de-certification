@@ -3,6 +3,8 @@
 {% block title %}Indicateurs{% endblock %}
 
 {% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <div class="container mt-4">
     <h2 class="mb-4">Indicateurs des articles et vidéos</h2>
 
@@ -104,5 +106,98 @@
         <p class="text-muted">Aucune donnée disponible.</p>
     {% endif %}
 
+    <hr>
+
+    <!-- Graphiques -->
+    <h4 class="mt-5">Visualisation des indicateurs</h4>
+    <div class="row">
+        <div class="col-md-12 mt-3">
+            <canvas id="durationChart"></canvas>
+        </div>
+        <div class="col-md-6 mt-5">
+            <canvas id="articlesChart"></canvas>
+        </div>
+        <div class="col-md-6 mt-5">
+            <canvas id="keywordsPerArticleChart"></canvas>
+        </div>
+        <div class="col-md-6 mt-5">
+            <canvas id="comparisonChart"></canvas>
+        </div>
+        <div class="col-md-6 mt-5">
+            <canvas id="summariesChart"></canvas>
+        </div>
+    </div>
 </div>
+
+<script>
+    const monitoringLogs = {{ metrics.monitoring_logs | tojson }};
+    const labels = monitoringLogs.map(log => log.timestamp.split("T")[0]);
+
+    const durationData = monitoringLogs.map(log => log.duration_seconds || 0);
+    const articlesData = monitoringLogs.map(log => log.articles_count || 0);
+    const keywordsAvgData = monitoringLogs.map(log => log.average_keywords_per_article || 0);
+    const scientificData = monitoringLogs.map(log => log.scientific_articles_count || 0);
+    const summariesData = monitoringLogs.map(log => log.summaries_generated || 0);
+
+    function createChart(id, type, title, data, label, borderColor, bgColor, xTitle, yTitle, stacked = false) {
+        new Chart(document.getElementById(id), {
+            type: type,
+            data: {
+                labels: labels,
+                datasets: Array.isArray(data) ? [{
+                    label: label,
+                    data: data,
+                    borderColor: borderColor,
+                    backgroundColor: bgColor || borderColor,
+                    fill: false
+                }] : data
+            },
+            options: {
+                plugins: {
+                    title: {
+                        display: true,
+                        text: title,
+                        font: { size: 16 }
+                    }
+                },
+                scales: {
+                    x: {
+                        stacked: stacked,
+                        title: {
+                            display: true,
+                            text: xTitle
+                        }
+                    },
+                    y: {
+                        stacked: stacked,
+                        title: {
+                            display: true,
+                            text: yTitle
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    createChart('durationChart', 'line', 'Durée des scripts dans le temps', durationData, 'Durée (s)', '#007bff', null, 'Date', 'Durée en secondes');
+    createChart('articlesChart', 'bar', 'Nombre d’articles collectés', articlesData, 'Articles collectés', '#28a745', null, 'Date', 'Nombre d’articles');
+    createChart('keywordsPerArticleChart', 'line', 'Moyenne de mots-clés par article', keywordsAvgData, 'Mots-clés / article', '#ffc107', null, 'Date', 'Nombre moyen de mots-clés');
+    createChart('comparisonChart', 'bar', 'Comparaison : Articles vs Scientifiques', {
+        labels: labels,
+        datasets: [
+            {
+                label: 'Articles',
+                data: articlesData,
+                backgroundColor: '#17a2b8'
+            },
+            {
+                label: 'Scientifiques',
+                data: scientificData,
+                backgroundColor: '#6f42c1'
+            }
+        ]
+    }, '', '', '', 'Date', 'Nombre', true);
+    createChart('summariesChart', 'line', 'Nombre de résumés générés dans le temps', summariesData, 'Résumés générés', '#dc3545', null, 'Date', 'Nombre de résumés');
+</script>
 {% endblock %}
