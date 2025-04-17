@@ -294,6 +294,8 @@ def metrics():
         "top_keywords_by_source": [],
         "keyword_frequency": [],
         "scientific_keyword_frequency": [],
+        "monitoring_logs": [],
+        "alert": None
     }
 
     try:
@@ -320,7 +322,28 @@ def metrics():
         # Ajout des logs de monitoring
         response = requests.get(f"{API_URL}/metrics/monitoring-logs", headers=headers)
         if response.status_code == 200:
-            metrics_data["monitoring_logs"] = response.json()
+            monitoring_logs = response.json()
+            metrics_data["monitoring_logs"] = monitoring_logs
+
+            # Détection d’alertes selon les seuils par script
+            for log in monitoring_logs:
+                script = log.get("script")
+                duration = log.get("duration_seconds", 0)
+
+                if script == "extract_keywords" and duration > 30:
+                    metrics_data["alert"] = f"⏱ Le script '{script}' a dépassé 30 secondes ({duration}s)"
+                    break
+                elif script == "extract_scientific_keywords" and duration > 60:
+                    metrics_data["alert"] = f"⏱ Le script '{script}' a dépassé 60 secondes ({duration}s)"
+                    break
+                elif script == "generate_summaries" and duration > 360:
+                    metrics_data["alert"] = f"⏱ Le script '{script}' a dépassé 360 secondes ({duration}s)"
+                    break
+                # Ajout possible d'autres conditions ici si besoin
+
+            # Si aucune alerte détectée, on peut ajouter un message positif
+            if not metrics_data["alert"]:
+                metrics_data["alert"] = "Tous les scripts se sont exécutés dans les délais."
 
     except requests.exceptions.RequestException:
         flash("Erreur de connexion au serveur.", "danger")

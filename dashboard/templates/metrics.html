@@ -6,24 +6,103 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <div class="container mt-4">
-    <h2 class="mb-4">Indicateurs des articles et vidéos</h2>
+    <h2 class="mb-4">Métriques</h2>
+
+    <!-- Alerte -->
+    {% if metrics.alert %}
+        <div class="alert alert-warning" role="alert">
+            {{ metrics.alert }}
+        </div>
+    {% endif %}
+
+       <!-- Graphiques -->
+{% if metrics.monitoring_logs %}
+<h4 class="mt-5">Monitoring : durée des scripts (en secondes)</h4>
+<div class="row">
+    <div class="col-md-4 mt-3"><canvas id="extractKeywordsChart"></canvas></div>
+    <div class="col-md-4 mt-3"><canvas id="extractScientificChart"></canvas></div>
+    <div class="col-md-4 mt-3"><canvas id="generateSummariesChart"></canvas></div>
+</div>
+
+<script>
+    const logs = {{ metrics.monitoring_logs | tojson }};
+
+    // Tri par date (timestamp) ascendant
+    logs.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+    function filterLogsByScript(scriptName) {
+        return logs.filter(log => log.script === scriptName);
+    }
+
+    function extractChartData(filteredLogs) {
+        return {
+            labels: filteredLogs.map(log => new Date(log.timestamp).toLocaleString()),
+            data: filteredLogs.map(log => log.duration_seconds || 0)
+        };
+    }
+
+    function createDurationChart(canvasId, title, chartData, color) {
+        new Chart(document.getElementById(canvasId), {
+            type: 'line',
+            data: {
+                labels: chartData.labels,
+                datasets: [{
+                    label: 'Durée (s)',
+                    data: chartData.data,
+                    borderColor: color,
+                    backgroundColor: color + '33',
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 3
+                }]
+            },
+            options: {
+                plugins: {
+                    title: {
+                        display: true,
+                        text: title,
+                        font: { size: 16 }
+                    }
+                },
+                scales: {
+                    x: {
+                        title: { display: true, text: 'Date et heure' }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: 'Durée (s)' }
+                    }
+                }
+            }
+        });
+    }
+
+    const scripts = [
+        { name: 'extract_keywords', id: 'extractKeywordsChart', color: '#007bff', label: 'Durée de extract_keywords' },
+        { name: 'extract_scientific_keywords', id: 'extractScientificChart', color: '#28a745', label: 'Durée de extract_scientific_keywords' },
+        { name: 'generate_summaries', id: 'generateSummariesChart', color: '#dc3545', label: 'Durée de generate_summaries' }
+    ];
+
+    scripts.forEach(script => {
+        const logsForScript = filterLogsByScript(script.name);
+        const chartData = extractChartData(logsForScript);
+        createDurationChart(script.id, script.label, chartData, script.color);
+    });
+</script>
+{% else %}
+<p class="text-muted mt-5">Aucune donnée de logs de monitoring disponible pour afficher les graphiques.</p>
+{% endif %}
 
     <!-- Nombre d'articles par source -->
     <h4>Nombre d'articles par source</h4>
     {% if metrics.articles_by_source %}
         <table class="table table-striped">
             <thead>
-                <tr>
-                    <th>Source</th>
-                    <th>Nombre d'articles</th>
-                </tr>
+                <tr><th>Source</th><th>Nombre d'articles</th></tr>
             </thead>
             <tbody>
                 {% for source in metrics.articles_by_source %}
-                    <tr>
-                        <td>{{ source.source }}</td>
-                        <td>{{ source.count }}</td>
-                    </tr>
+                    <tr><td>{{ source.source }}</td><td>{{ source.count }}</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -38,17 +117,11 @@
     {% if metrics.videos_by_source %}
         <table class="table table-striped">
             <thead>
-                <tr>
-                    <th>Source</th>
-                    <th>Nombre de vidéos</th>
-                </tr>
+                <tr><th>Source</th><th>Nombre de vidéos</th></tr>
             </thead>
             <tbody>
                 {% for source in metrics.videos_by_source %}
-                    <tr>
-                        <td>{{ source.source }}</td>
-                        <td>{{ source.count }}</td>
-                    </tr>
+                    <tr><td>{{ source.source }}</td><td>{{ source.count }}</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -63,17 +136,11 @@
     {% if metrics.keyword_frequency %}
         <table class="table table-striped">
             <thead>
-                <tr>
-                    <th>Mot-clé</th>
-                    <th>Occurrences</th>
-                </tr>
+                <tr><th>Mot-clé</th><th>Occurrences</th></tr>
             </thead>
             <tbody>
                 {% for keyword in metrics.keyword_frequency %}
-                    <tr>
-                        <td>{{ keyword.keyword }}</td>
-                        <td>{{ keyword.count }}</td>
-                    </tr>
+                    <tr><td>{{ keyword.keyword }}</td><td>{{ keyword.count }}</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -88,17 +155,11 @@
     {% if metrics.scientific_keyword_frequency %}
         <table class="table table-striped">
             <thead>
-                <tr>
-                    <th>Mot-clé</th>
-                    <th>Occurrences</th>
-                </tr>
+                <tr><th>Mot-clé</th><th>Occurrences</th></tr>
             </thead>
             <tbody>
                 {% for keyword in metrics.scientific_keyword_frequency %}
-                    <tr>
-                        <td>{{ keyword.keyword }}</td>
-                        <td>{{ keyword.count }}</td>
-                    </tr>
+                    <tr><td>{{ keyword.keyword }}</td><td>{{ keyword.count }}</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -108,96 +169,5 @@
 
     <hr>
 
-    <!-- Graphiques -->
-    <h4 class="mt-5">Visualisation des indicateurs</h4>
-    <div class="row">
-        <div class="col-md-12 mt-3">
-            <canvas id="durationChart"></canvas>
-        </div>
-        <div class="col-md-6 mt-5">
-            <canvas id="articlesChart"></canvas>
-        </div>
-        <div class="col-md-6 mt-5">
-            <canvas id="keywordsPerArticleChart"></canvas>
-        </div>
-        <div class="col-md-6 mt-5">
-            <canvas id="comparisonChart"></canvas>
-        </div>
-        <div class="col-md-6 mt-5">
-            <canvas id="summariesChart"></canvas>
-        </div>
-    </div>
 </div>
-
-<script>
-    const monitoringLogs = {{ metrics.monitoring_logs | tojson }};
-    const labels = monitoringLogs.map(log => log.timestamp.split("T")[0]);
-
-    const durationData = monitoringLogs.map(log => log.duration_seconds || 0);
-    const articlesData = monitoringLogs.map(log => log.articles_count || 0);
-    const keywordsAvgData = monitoringLogs.map(log => log.average_keywords_per_article || 0);
-    const scientificData = monitoringLogs.map(log => log.scientific_articles_count || 0);
-    const summariesData = monitoringLogs.map(log => log.summaries_generated || 0);
-
-    function createChart(id, type, title, data, label, borderColor, bgColor, xTitle, yTitle, stacked = false) {
-        new Chart(document.getElementById(id), {
-            type: type,
-            data: {
-                labels: labels,
-                datasets: Array.isArray(data) ? [{
-                    label: label,
-                    data: data,
-                    borderColor: borderColor,
-                    backgroundColor: bgColor || borderColor,
-                    fill: false
-                }] : data
-            },
-            options: {
-                plugins: {
-                    title: {
-                        display: true,
-                        text: title,
-                        font: { size: 16 }
-                    }
-                },
-                scales: {
-                    x: {
-                        stacked: stacked,
-                        title: {
-                            display: true,
-                            text: xTitle
-                        }
-                    },
-                    y: {
-                        stacked: stacked,
-                        title: {
-                            display: true,
-                            text: yTitle
-                        }
-                    }
-                }
-            }
-        });
-    }
-
-    createChart('durationChart', 'line', 'Durée des scripts dans le temps', durationData, 'Durée (s)', '#007bff', null, 'Date', 'Durée en secondes');
-    createChart('articlesChart', 'bar', 'Nombre d’articles collectés', articlesData, 'Articles collectés', '#28a745', null, 'Date', 'Nombre d’articles');
-    createChart('keywordsPerArticleChart', 'line', 'Moyenne de mots-clés par article', keywordsAvgData, 'Mots-clés / article', '#ffc107', null, 'Date', 'Nombre moyen de mots-clés');
-    createChart('comparisonChart', 'bar', 'Comparaison : Articles vs Scientifiques', {
-        labels: labels,
-        datasets: [
-            {
-                label: 'Articles',
-                data: articlesData,
-                backgroundColor: '#17a2b8'
-            },
-            {
-                label: 'Scientifiques',
-                data: scientificData,
-                backgroundColor: '#6f42c1'
-            }
-        ]
-    }, '', '', '', 'Date', 'Nombre', true);
-    createChart('summariesChart', 'line', 'Nombre de résumés générés dans le temps', summariesData, 'Résumés générés', '#dc3545', null, 'Date', 'Nombre de résumés');
-</script>
 {% endblock %}
