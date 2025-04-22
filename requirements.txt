@@ -1,5 +1,6 @@
 absl-py==2.1.0
 annotated-types==0.7.0
+apscheduler
 asttokens==3.0.0
 astunparse==1.6.3
 attrs==24.2.0
