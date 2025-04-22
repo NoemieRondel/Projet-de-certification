@@ -1,10 +1,8 @@
 import pytest
 import sys
 import os
-
 # Obtient le chemin absolu du répertoire racine du projet
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-
 # Ajoute le répertoire racine à sys.path s'il n'y est pas déjà
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
