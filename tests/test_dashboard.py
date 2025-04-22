@@ -25,12 +25,13 @@ class TestDashboard:
     @pytest.fixture(autouse=True)
     def mock_auth_dependency(self):
         with patch("app.security.jwt_handler.jwt_required", return_value={"user_id": 1}) as mock:
-            yield mock
+             yield mock
 
+    # ==========================================================================
     @pytest.mark.asyncio
     @patch("app.database.get_connection")
-    async def test_get_dashboard_success(self, mock_get_connection):
-
+    async def test_get_dashboard_success(self, mock_pool, mock_get_connection):
+    # ==========================================================================
         # Mock de la connexion MySQL et du curseur
         mock_cursor = MagicMock()
         mock_connection = MagicMock()
@@ -38,14 +39,15 @@ class TestDashboard:
         mock_connection.cursor.return_value.__exit__.return_value = None
         mock_get_connection.return_value = mock_connection
 
+        # Résultats mockés
         mock_cursor.fetchone.side_effect = [
-            {"source_preferences": "TechCrunch", "video_channel_preferences": "AI_Channel", "keyword_preferences": "AI;ML"}, # Préférences utilisateur
-            {"count": 2},  # articles_count pour les sources
+            {"source_preferences": "TechCrunch", "video_channel_preferences": "AI_Channel", "keyword_preferences": "AI;ML"},            {"count": 2},  # articles_count pour les sources
             {"count": 1},  # articles_count pour les mots-clés
             {"count": 1},  # scientific_articles_count
             {"count": 1},  # videos_count
         ]
 
+        # Formater les objets datetime en chaînes si votre response_model API attend des chaînes
         now_str = datetime.now().isoformat()
 
         mock_cursor.fetchall.side_effect = [
@@ -85,9 +87,11 @@ class TestDashboard:
         assert "metrics" in data
         assert isinstance(data["metrics"], dict)
 
+    # ==========================================================================
     @pytest.mark.asyncio
     @patch("app.database.get_connection")
-    async def test_dashboard_missing_preferences(self, mock_get_connection):
+    async def test_dashboard_missing_preferences(self, mock_pool, mock_get_connection):
+    # ==========================================================================
         # Mock de la connexion MySQL et du curseur
         mock_cursor = MagicMock()
         mock_connection = MagicMock()

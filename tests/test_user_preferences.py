@@ -19,6 +19,7 @@ if project_root not in sys.path:
 class TestUserPreferences:
 # ==============================================================================
 
+    # Importez app.main après avoir appliqué le patch au niveau de la classe
     from app.main import app
     client = TestClient(app)
 
@@ -27,9 +28,11 @@ class TestUserPreferences:
         with patch("app.security.jwt_handler.jwt_required", return_value={"user_id": 1}) as mock:
             yield mock
 
+    # ==========================================================================
     @patch("app.user_preferences_route.get_available_filters")
     @patch("app.database.get_connection")
-    def test_get_user_preferences(self, mock_get_connection, mock_get_filters):
+    def test_get_user_preferences(self, mock_pool, mock_get_connection, mock_get_filters):
+    # ==========================================================================
         mock_get_filters.return_value = {
             "articles": ["The Verge", "TechCrunch"],
             "videos": ["OpenAI"],
@@ -62,9 +65,11 @@ class TestUserPreferences:
         mock_cursor.fetchone.assert_called_once()
         mock_conn.close.assert_called_once()
 
+    # ==========================================================================
     @patch("app.user_preferences_route.get_available_filters")
     @patch("app.database.get_connection")
-    def test_post_user_preferences(self, mock_get_connection, mock_get_filters):
+    def test_post_user_preferences(self, mock_pool, mock_get_connection, mock_get_filters):
+    # ==========================================================================
         mock_get_filters.return_value = {
             "articles": ["The Verge", "TechCrunch"],
             "videos": ["OpenAI"],
@@ -95,8 +100,10 @@ class TestUserPreferences:
         mock_conn.commit.assert_called_once()
         mock_conn.close.assert_called_once()
 
+    # ==========================================================================
     @patch("app.database.get_connection")
-    def test_delete_user_preferences(self, mock_get_connection):
+    def test_delete_user_preferences(self, mock_pool, mock_get_connection):
+    # ==========================================================================
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_get_connection.return_value = mock_conn

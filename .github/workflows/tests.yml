@@ -4,11 +4,30 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:  # Permet de déclencher manuellement le workflow
+  workflow_dispatch:
 
 jobs:
   run-tests:
     runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        ports:
+          - 3306:3306
+        env:
+          MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
+          MYSQL_DATABASE: api_test_db
+          MYSQL_USER: test_user
+          MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD_TEST_USER }}
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+        wait-for:
+          mysql:
+            condition: service_healthy
 
     steps:
       - name: Checkout code
@@ -25,6 +44,12 @@ jobs:
           pip install -r requirements.txt
           pip install pytest requests
 
-      - name:  Run unit and integration tests (excluding generation tests)
+      - name: Run unit and integration tests (excluding generation tests)
+        env:
+          DB_HOST: mysql
+          DB_PORT: 3306
+          DB_USER: test_user
+          DB_PASSWORD: ${{ secrets.MYSQL_PASSWORD_TEST_USER }}
+          DB_NAME: api_test_db
         run: |
           pytest tests/ -k "not test_generate_summaries and not test_generate_keywords and not test_generate_keywords_scientific_articles"

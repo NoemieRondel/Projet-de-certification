@@ -28,11 +28,13 @@ class TestMetrics:
     @pytest.fixture(autouse=True)
     def mock_auth_dependency(self):
         with patch("app.security.jwt_handler.jwt_required", return_value={"user_id": 1}) as mock:
-            yield mock
+             yield mock
 
+    # ==========================================================================
     @pytest.mark.asyncio
-    @patch("app.database.execute_query")
-    async def test_get_articles_by_source(self, mock_execute_query):
+    @patch("app.routes.metrics.execute_query")
+    async def test_get_articles_by_source(self, mock_pool, mock_execute_query):
+    # ==========================================================================
         mock_data = [{"source": "TechCrunch", "count": 42}]
         mock_execute_query.return_value = mock_data
 
@@ -41,9 +43,11 @@ class TestMetrics:
         assert response.status_code == 200
         assert response.json() == mock_data
 
+    # ==========================================================================
     @pytest.mark.asyncio
-    @patch("app.database.execute_query")
-    async def test_get_videos_by_source(self, mock_execute_query):
+    @patch("app.routes.metrics.execute_query")
+    async def test_get_videos_by_source(self, mock_pool, mock_execute_query):
+    # ==========================================================================
         mock_data = [{"source": "YouTube", "count": 18}]
         mock_execute_query.return_value = mock_data
 
@@ -52,9 +56,11 @@ class TestMetrics:
         assert response.status_code == 200
         assert response.json() == mock_data
 
+    # ==========================================================================
     @pytest.mark.asyncio
-    @patch("app.database.execute_query")
-    async def test_get_keyword_frequency(self, mock_execute_query):
+    @patch("app.routes.metrics.execute_query")
+    async def test_get_keyword_frequency(self, mock_pool, mock_execute_query):
+    # ==========================================================================
         mock_data = [{"keyword": "AI", "count": 10}]
         mock_execute_query.return_value = mock_data
 
@@ -63,9 +69,11 @@ class TestMetrics:
         assert response.status_code == 200
         assert response.json() == mock_data
 
+    # ==========================================================================
     @pytest.mark.asyncio
-    @patch("app.database.execute_query")
-    async def test_get_scientific_keyword_frequency(self, mock_execute_query):
+    @patch("app.routes.metrics.execute_query")
+    async def test_get_scientific_keyword_frequency(self, mock_pool, mock_execute_query):
+    # ==========================================================================
         mock_data = [{"keyword": "deep learning", "count": 7}]
         mock_execute_query.return_value = mock_data
 
@@ -74,9 +82,11 @@ class TestMetrics:
         assert response.status_code == 200
         assert response.json() == mock_data
 
+    # ==========================================================================
     @pytest.mark.asyncio
-    @patch("app.database.execute_query")
-    async def test_get_monitoring_logs(self, mock_execute_query):
+    @patch("app.routes.metrics.execute_query")
+    async def test_get_monitoring_logs(self, mock_pool, mock_execute_query):
+    # ==========================================================================
         now = datetime.utcnow().isoformat()
         mock_data = [{
             "timestamp": now,

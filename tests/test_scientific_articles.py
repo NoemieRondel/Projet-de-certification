@@ -3,6 +3,7 @@ from httpx import AsyncClient
 from unittest.mock import patch, MagicMock
 import sys
 import os
+from datetime import datetime
 
 # Obtient le chemin absolu du répertoire racine du projet
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -27,11 +28,14 @@ class TestScientificArticles:
     @pytest.fixture(autouse=True)
     def mock_auth_dependency(self):
         with patch("app.security.jwt_handler.jwt_required", return_value={"user_id": 1}) as mock:
-            yield mock
+             yield mock
 
+    # ==========================================================================
+    # CORRECTION : Ajout de 'mock_pool' dans la signature pour recevoir le mock du patch de classe
     @pytest.mark.asyncio
     @patch("app.database.get_connection")
-    async def test_get_all_scientific_articles(self, mock_get_connection):
+    async def test_get_all_scientific_articles(self, mock_pool, mock_get_connection):
+    # ==========================================================================
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
@@ -60,9 +64,12 @@ class TestScientificArticles:
         assert len(data) > 0
         assert data[0]["title"] == "AI in Healthcare"
 
+    # ==========================================================================
+    # CORRECTION : Ajout de 'mock_pool' dans la signature
     @pytest.mark.asyncio
     @patch("app.database.get_connection")
-    async def test_get_latest_scientific_articles(self, mock_get_connection):
+    async def test_get_latest_scientific_articles(self, mock_pool, mock_get_connection):
+    # ==========================================================================
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value.__enter__.return_value = mock_cursor

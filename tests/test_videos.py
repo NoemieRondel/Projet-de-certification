@@ -22,6 +22,7 @@ VALID_TOKEN = "Bearer faketoken123"
 class TestVideos:
 # ==============================================================================
 
+    # Importez app.main après avoir appliqué le patch au niveau de la classe
     from app.main import app
 
     @pytest.fixture(autouse=True)
@@ -29,9 +30,11 @@ class TestVideos:
         with patch("app.security.jwt_handler.jwt_required", return_value={"user_id": 1}) as mock:
              yield mock
 
+    # ==========================================================================
     @pytest.mark.asyncio
     @patch("app.database.get_connection")
-    async def test_get_all_videos(self, mock_get_connection):
+    async def test_get_all_videos(self, mock_pool, mock_get_connection):
+    # ==========================================================================
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
@@ -62,9 +65,11 @@ class TestVideos:
         assert data[0]["title"] == "AI Revolution"
         assert data[0]["publication_date"] == "2024-11-10"
 
+    # ==========================================================================
     @pytest.mark.asyncio
     @patch("app.database.get_connection")
-    async def test_get_video_sources(self, mock_get_connection):
+    async def test_get_video_sources(self, mock_pool, mock_get_connection):
+    # ==========================================================================
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value.__enter__.return_value = mock_cursor

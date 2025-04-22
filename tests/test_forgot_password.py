@@ -26,9 +26,11 @@ class TestForgotPassword:
     def fake_email(self):
         return "testuser@example.com"
 
+    # ==========================================================================
     @patch("app.database.get_connection")
     @patch("app.mailer.send_email")
-    def test_forgot_password_existing_user(self, mock_send_email, mock_get_connection, fake_email):
+    def test_forgot_password_existing_user(self, mock_pool, mock_send_email, mock_get_connection, fake_email):
+    # ==========================================================================
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_get_connection.return_value = mock_conn
@@ -37,6 +39,8 @@ class TestForgotPassword:
 
         # Simuler un utilisateur trouvé en base (fetchone)
         mock_cursor.fetchone.return_value = {"id": 1}
+
+        assert isinstance(fake_email, str), "fake_email fixture did not inject a string"
 
         response = self.client.post("/forgot_password", json={"email": fake_email})
 
@@ -54,9 +58,11 @@ class TestForgotPassword:
 
         mock_send_email.assert_called_once()
 
+    # ==========================================================================
     @patch("app.database.get_connection")
     @patch("app.mailer.send_email")
-    def test_forgot_password_non_existing_user(self, mock_send_email, mock_get_connection, fake_email):
+    def test_forgot_password_non_existing_user(self, mock_pool, mock_send_email, mock_get_connection, fake_email):
+    # ==========================================================================
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_get_connection.return_value = mock_conn
@@ -65,6 +71,8 @@ class TestForgotPassword:
 
         # Simuler aucun utilisateur trouvé
         mock_cursor.fetchone.return_value = None
+
+        assert isinstance(fake_email, str), "fake_email fixture did not inject a string"
 
         response = self.client.post("/forgot_password", json={"email": fake_email})
 
