@@ -20,8 +20,8 @@ jobs:
           MYSQL_DATABASE: api_test_db
           MYSQL_USER: test_user
           MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD_TEST_USER }}
-        healthcheck: # Bloc healthcheck standard pour Docker/services GitHub Actions
-          test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "${{ env.MYSQL_USER }}", "-p${{ env.PASSWORD }}"]
+        healthcheck:
+          test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
           interval: 10s
           timeout: 5s
           retries: 5
