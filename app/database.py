@@ -22,12 +22,16 @@ db_config = {
     "pool_size": 10
 }
 
-connection_pool = mysql.connector.pooling.MySQLConnectionPool(**db_config)
+# Ne pas initialiser le pool immédiatement
+connection_pool = None
 
 
 def get_connection():
-    """Récupère une connexion depuis le pool."""
+    """Récupère une connexion depuis le pool, en l'initialisant si nécessaire."""
+    global connection_pool
     try:
+        if connection_pool is None:
+            connection_pool = mysql.connector.pooling.MySQLConnectionPool(**db_config)
         connection = connection_pool.get_connection()
         if connection.is_connected():
             print("Connexion réussie via le pool de connexions")
