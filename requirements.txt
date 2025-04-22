@@ -4,6 +4,7 @@ APScheduler==3.11.0
 asttokens==3.0.0
 astunparse==1.6.3
 attrs==24.2.0
+bcrypt==4.0.1
 beautifulsoup4==4.12.3
 blis==1.1.0
 catalogue==2.0.10
