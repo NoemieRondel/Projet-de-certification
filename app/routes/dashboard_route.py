@@ -7,6 +7,7 @@ from contextlib import closing
 
 router = APIRouter()
 
+
 @router.get("/")
 def get_dashboard(
     user=Depends(jwt_required),
@@ -19,7 +20,7 @@ def get_dashboard(
         raise HTTPException(status_code=401, detail="Invalid token: user_id not found")
 
     with closing(get_connection()) as conn, conn.cursor(dictionary=True) as cursor:
-        # 1️⃣ Récupérer les préférences de l'utilisateur
+        #  Récupérer les préférences de l'utilisateur
         cursor.execute(
             "SELECT source_preferences, video_channel_preferences, keyword_preferences "
             "FROM user_preferences WHERE user_id = %s", (user_id,)
@@ -32,7 +33,7 @@ def get_dashboard(
         channels = user_prefs["video_channel_preferences"].split(";") if user_prefs["video_channel_preferences"] else []
         keywords = user_prefs["keyword_preferences"].split(";") if user_prefs["keyword_preferences"] else []
 
-        # 2️⃣ Récupérer les derniers articles en fonction des sources
+        #  Récupérer les derniers articles en fonction des sources
         latest_articles_by_source = []
         articles_count = 0
         if sources:
@@ -50,7 +51,7 @@ def get_dashboard(
             cursor.execute(query, sources)
             articles_count = cursor.fetchone()["count"]
 
-        # 3️⃣ Récupérer les articles liés aux mots-clés préférés
+        #  Récupérer les articles liés aux mots-clés préférés
         latest_articles_by_keywords = []
         latest_scientific_articles_by_keywords = []
         scientific_articles_count = 0
@@ -86,7 +87,7 @@ def get_dashboard(
             cursor.execute(query, params)
             scientific_articles_count = cursor.fetchone()["count"]
 
-        # 4️⃣ Récupérer les dernières vidéos des chaînes préférées
+        #  Récupérer les dernières vidéos des chaînes préférées
         latest_videos = []
         videos_count = 0
         if channels:
@@ -104,7 +105,7 @@ def get_dashboard(
             cursor.execute(query, channels)
             videos_count = cursor.fetchone()["count"]
 
-        # 5️⃣ Calcul des tendances des mots-clés sur une plage dynamique
+        #  Calcul des tendances des mots-clés sur une plage dynamique
         date_threshold = (datetime.now() - timedelta(days=days_range)).strftime("%Y-%m-%d")
         cursor.execute(
             "SELECT IFNULL(keywords, '') AS keywords, publication_date "
