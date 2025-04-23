@@ -31,7 +31,7 @@ class TestEndToEndFlow:
         assert register_response.status_code in [200, 201]
 
         login_payload = {
-            "username": unique_username,
+            "email": unique_email,
             "password": password
         }
 

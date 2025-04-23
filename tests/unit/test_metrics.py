@@ -11,32 +11,28 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from app.security.jwt_handler import jwt_required
-from app.main import app
+from app.main import app as fastapi_app
+
+
+def mock_jwt_required_func():
+    return {"user_id": 1}
 
 
 class TestMetrics:
+    app = fastapi_app
     client = TestClient(app)
 
     @pytest.fixture(autouse=True, scope="class")
     def setup_class_auth_override(self):
-        class MockUser:
-            id = 1
-            username = "testuser"
-            email = "test@example.com"
-
-        def mock_get_current_user_func():
-            return {"user_id": 1}
-
-        # Use the correct dependency (jwt_required) for the override
         original_override = self.app.dependency_overrides.get(jwt_required)
-        self.app.dependency_overrides[jwt_required] = mock_get_current_user_func
+        self.app.dependency_overrides[jwt_required] = mock_jwt_required_func
 
         yield
 
         if original_override:
-            self.app.dependency_overrides[jwt_required] = original_override
+             self.app.dependency_overrides[jwt_required] = original_override
         else:
-            del self.app.dependency_overrides[jwt_required]
+             del self.app.dependency_overrides[jwt_required]
 
     @patch("app.database.connection_pool")
     def test_get_articles_by_source(self, mock_pool):

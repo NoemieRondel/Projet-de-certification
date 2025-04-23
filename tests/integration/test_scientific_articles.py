@@ -2,7 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 import sys
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 import uuid
 
 
@@ -33,14 +33,14 @@ class TestScientificArticles:
         assert reg_resp.status_code in [200, 201], f"Registration failed in auth_headers fixture: {reg_resp.status_code}, {reg_resp.text}"
 
         login_payload = {
-            "username": unique_username,
+            "email": unique_email,
             "password": password
         }
-        login_resp = self.client.post("/auth/login", data=login_payload)
-        assert login_resp.status_code == 200, f"Login failed in auth_headers fixture: {login_resp.status_code}, {login_resp.text}"
+        login_resp = self.client.post("/auth/login", json=login_payload)
+        assert login_resp.status_code == 200, f"Login failed in auth_headers fixture: {login_resp.status_code}. Response detail: {login_resp.text}"
 
         token_data = login_resp.json()
-        assert "access_token" in token_data, f"Login response missing access_token in auth_headers fixture: {token_data}"
+        assert "access_token" in token_data, f"Login response missing access_token. Response: {token_data}"
         token = token_data["access_token"]
 
         headers = {"Authorization": f"Bearer {token}"}

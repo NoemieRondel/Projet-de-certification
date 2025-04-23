@@ -1,78 +1,90 @@
-import os
+import pytest
+from fastapi.testclient import TestClient
+from unittest.mock import patch, MagicMock
 import sys
+import os
+
 current_file_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.abspath(os.path.join(current_file_dir, '..', '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-import pytest
-from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
 from app.main import app
 
 
-@pytest.mark.unit
-@patch("app.database.connection_pool")
-@patch("app.security.password_handler.hash_password")
-@patch("app.security.password_handler.verify_password")
-def test_register_and_login(mock_verify_password, mock_hash_password, mock_pool):
-    client = TestClient(app)
+class TestAuth:
+    @pytest.mark.unit
+    @patch("app.database.connection_pool")
+    @patch("app.security.password_handler.hash_password")
+    @patch("app.security.password_handler.verify_password")
+    @patch("app.security.jwt_handler.create_access_token")
+    def test_register_and_login(
+        self,
+        mock_create_access_token,
+        mock_verify_password,
+        mock_hash_password,
+        mock_pool
+    ):
+        client = TestClient(app)
 
-    mock_conn = MagicMock()
-    mock_cursor = MagicMock()
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
 
-    mock_pool.get_connection.return_value = mock_conn
+        mock_pool.get_connection.return_value = mock_conn
 
-    # Configuration du curseur mocké
-    mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-    mock_conn.cursor.return_value.__exit__.return_value = None
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_conn.cursor.return_value.__exit__.return_value = None
 
-    # Mocks pour les méthodes de connexion appelées
-    mock_conn.commit.return_value = None
-    mock_conn.rollback.return_value = None
+        mock_conn.commit.return_value = None
+        mock_conn.rollback.return_value = None
+        mock_conn.close.return_value = None
 
-    def execute_side_effect(query, params=None):
-        query = query.lower()
-        # Simule le SELECT utilisateur (pour check existence ou login)
-        if "select" in query and "from users" in query and "email" in query:
-            if params and user_data["email"] in params:
-                return {
-                     "id": 1,
-                     "username": "pytester",
-                     "email": user_data["email"],
-                     "password_hash": "fake_hashed_password"
-                 }
-            else:
-                return None
-        elif "insert into users" in query:
-            mock_cursor.rowcount = 1
-            mock_cursor.lastrowid = 1
+        mock_cursor.fetchone.side_effect = [
+            None,
+            {
+                "id": 1,
+                "username": "pytester",
+                "email": "pytest@example.com",
+                "password_hash": "fake_hashed_password"
+            }
+        ]
 
-    mock_cursor.execute.side_effect = execute_side_effect
+        # Simule le résultat des opérations qui modifient des lignes
+        mock_cursor.rowcount = 1
+        mock_cursor.lastrowid = 1
+        # Mock les méthodes de password handler et jwt handler
+        mock_hash_password.return_value = "fake_hashed_password"
+        mock_verify_password.return_value = True
+        mock_create_access_token.return_value = "fake_jwt_token"
 
-    mock_hash_password.return_value = "fake_hashed_password"
-    mock_verify_password.return_value = True
+        user_data = {
+            "username": "pytester",
+            "email": "pytest@example.com",
+            "password": "StrongPass123!"
+        }
 
-    user_data = {
-        "username": "pytester",
-        "email": "pytest@example.com",
-        "password": "StrongPass123!"
-    }
+        # Test Enregistrement
+        res_register = client.post("/auth/register", json=user_data)
+        assert res_register.status_code == 200, f"Registration failed with status {res_register.status_code}. Response: {res_register.text}"
 
-    # Test Enregistrement
-    res_register = client.post("/auth/register", json=user_data)
-    assert res_register.status_code == 200
-    assert "access_token" in res_register.json()
+        login_data = {
+            "email": "pytest@example.com",
+            "password": "StrongPass123!"
+        }
+        res_login = client.post("/auth/login", json=login_data)
 
-    # Test Connexion
-    login_data = {
-        "email": user_data["email"],
-        "password": user_data["password"]
-    }
-    res_login = client.post("/auth/login", json=login_data)
+        assert res_login.status_code == 200, f"Login failed with status {res_login.status_code}. Response: {res_login.text}"
+        login_response_data = res_login.json()
+        assert "access_token" in login_response_data, f"Login response missing access_token. Response: {login_response_data}"
+        assert login_response_data["access_token"] == "fake_jwt_token"
 
-    assert res_login.status_code == 200
-    assert "access_token" in res_login.json()
+        # Vérifications des appels aux mocks
+        mock_pool.get_connection.call_count == 2
+        mock_cursor.execute.call_count >= 2
+        mock_cursor.fetchone.call_count == 2
+        mock_conn.commit.call_count == 1
+        mock_conn.close.call_count == 2
 
-    mock_hash_password.assert_called_once_with(user_data["password"])
-    mock_verify_password.assert_called_once_with(login_data["password"], "fake_hashed_password") # Vérifie l'appel avec le mot de passe du login
+        mock_hash_password.assert_called_once_with("StrongPass123!")
+        mock_verify_password.assert_called_once_with("StrongPass123!", "fake_hashed_password")
+        mock_create_access_token.assert_called_once()

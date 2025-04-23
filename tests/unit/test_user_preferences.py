@@ -10,7 +10,7 @@ project_root = os.path.abspath(os.path.join(current_file_dir, '..', '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from app.main import app
+from app.main import app as fastapi_app
 from app.security.jwt_handler import jwt_required
 
 
@@ -19,6 +19,7 @@ def mock_jwt_required_func():
 
 
 class TestUserPreferences:
+    app = fastapi_app 
     client = TestClient(app)
 
     @pytest.fixture(autouse=True, scope="class")
@@ -29,9 +30,9 @@ class TestUserPreferences:
         yield
 
         if original_override:
-            self.app.dependency_overrides[jwt_required] = original_override
+             self.app.dependency_overrides[jwt_required] = original_override
         else:
-            del self.app.dependency_overrides[jwt_required]
+             del self.app.dependency_overrides[jwt_required]
 
     @patch("app.routes.user_preferences.get_available_filters")
     @patch("app.database.connection_pool")
@@ -204,7 +205,6 @@ class TestUserPreferences:
         response = self.client.post("/preferences/user-preferences", json=payload)
 
         assert response.status_code == 400, f"Expected 400, got {response.status_code}. Response: {response.text}"
-
 
         mock_get_filters.assert_called_once()
         mock_pool.get_connection.assert_not_called()
