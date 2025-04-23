@@ -1,16 +1,16 @@
-import os
-import sys
-from datetime import datetime
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
+import sys
+import os
+from datetime import datetime
 
 current_file_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.abspath(os.path.join(current_file_dir, '..', '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from app.security import get_current_user
+from app.security.jwt_handler import jwt_required
 from app.main import app
 
 
@@ -25,13 +25,18 @@ class TestMetrics:
             email = "test@example.com"
 
         def mock_get_current_user_func():
-            return MockUser()
+            return {"user_id": 1}
 
-        self.app.dependency_overrides[get_current_user] = mock_get_current_user_func
+        # Use the correct dependency (jwt_required) for the override
+        original_override = self.app.dependency_overrides.get(jwt_required)
+        self.app.dependency_overrides[jwt_required] = mock_get_current_user_func
 
         yield
 
-        self.app.dependency_overrides.clear()
+        if original_override:
+            self.app.dependency_overrides[jwt_required] = original_override
+        else:
+            del self.app.dependency_overrides[jwt_required]
 
     @patch("app.database.connection_pool")
     def test_get_articles_by_source(self, mock_pool):
@@ -42,17 +47,16 @@ class TestMetrics:
 
         mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
         mock_conn.cursor.return_value.__exit__.return_value = None
-
         mock_conn.close.return_value = None
+
         mock_data = [{"source": "TechCrunch", "count": 42}]
         mock_cursor.fetchall.return_value = mock_data
 
         response = self.client.get("/metrics/articles-by-source")
 
-        assert response.status_code == 200
-        assert response.json() == mock_data
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}. Response: {response.text}"
+        assert response.json() == mock_data, f"Expected {mock_data}, got {response.json()}. Response: {response.text}"
 
-        # Vérifications des appels aux mocks
         mock_pool.get_connection.assert_called_once()
         mock_conn.cursor.assert_called_once()
         mock_cursor.execute.assert_called_once()
@@ -73,8 +77,8 @@ class TestMetrics:
 
         response = self.client.get("/metrics/videos-by-source")
 
-        assert response.status_code == 200
-        assert response.json() == mock_data
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}. Response: {response.text}"
+        assert response.json() == mock_data, f"Expected {mock_data}, got {response.json()}. Response: {response.text}"
 
         mock_pool.get_connection.assert_called_once()
         mock_conn.cursor.assert_called_once()
@@ -96,8 +100,8 @@ class TestMetrics:
 
         response = self.client.get("/metrics/keyword-frequency")
 
-        assert response.status_code == 200
-        assert response.json() == mock_data
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}. Response: {response.text}"
+        assert response.json() == mock_data, f"Expected {mock_data}, got {response.json()}. Response: {response.text}"
 
         mock_pool.get_connection.assert_called_once()
         mock_conn.cursor.assert_called_once()
@@ -119,8 +123,8 @@ class TestMetrics:
 
         response = self.client.get("/metrics/scientific-keyword-frequency")
 
-        assert response.status_code == 200
-        assert response.json() == mock_data
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}. Response: {response.text}"
+        assert response.json() == mock_data, f"Expected {mock_data}, got {response.json()}. Response: {response.text}"
 
         mock_pool.get_connection.assert_called_once()
         mock_conn.cursor.assert_called_once()
@@ -137,7 +141,6 @@ class TestMetrics:
         mock_conn.cursor.return_value.__exit__.return_value = None
         mock_conn.close.return_value = None
 
-        # Simuler la date (maintenu pour la logique de test)
         now = datetime.utcnow()
         now_str = now.isoformat()
 
@@ -159,11 +162,12 @@ class TestMetrics:
 
         response = self.client.get("/metrics/monitoring-logs")
 
-        assert response.status_code == 200
-        assert isinstance(response.json(), list)
-        assert len(response.json()) > 0
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}. Response: {response.text}"
+        data = response.json()
+        assert isinstance(data, list)
+        assert len(data) > 0
 
-        assert response.json()[0]["timestamp"] == now_str
+        assert data[0]["timestamp"] == now_str
 
         mock_pool.get_connection.assert_called_once()
         mock_conn.cursor.assert_called_once()

@@ -11,28 +11,27 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from app.main import app
-from app.security import get_current_user
+from app.security.jwt_handler import jwt_required
 
 
-class MockUser:
-    id = 1
-    username = "testuser"
-    email = "test@example.com"
-
-
-def mock_get_current_user_func():
-    return MockUser()
+def mock_jwt_required_func():
+    return {"user_id": 1}
 
 
 class TestUserPreferences:
     client = TestClient(app)
 
-    # Fixture pour l'override d'autorisation
     @pytest.fixture(autouse=True, scope="class")
     def setup_class_auth_override(self):
-        self.app.dependency_overrides[get_current_user] = mock_get_current_user_func
+        original_override = self.app.dependency_overrides.get(jwt_required)
+        self.app.dependency_overrides[jwt_required] = mock_jwt_required_func
+
         yield
-        self.app.dependency_overrides.clear()
+
+        if original_override:
+            self.app.dependency_overrides[jwt_required] = original_override
+        else:
+            del self.app.dependency_overrides[jwt_required]
 
     @patch("app.routes.user_preferences.get_available_filters")
     @patch("app.database.connection_pool")
@@ -52,17 +51,15 @@ class TestUserPreferences:
         mock_conn.cursor.return_value.__exit__.return_value = None
         mock_conn.close.return_value = None
 
-        # Simuler le retour de la base
         mock_cursor.fetchone.return_value = {
             "source_preferences": "The Verge;TechCrunch",
             "video_channel_preferences": "OpenAI",
             "keyword_preferences": "AI;Deep Learning"
         }
 
-        # Requête sans en-tête d'autorisation grâce à l'override
         response = self.client.get("/preferences/user-preferences")
 
-        assert response.status_code == 200
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}. Response: {response.text}"
         data = response.json()
 
         assert "user_preferences" in data
@@ -92,12 +89,11 @@ class TestUserPreferences:
         mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
         mock_conn.cursor.return_value.__exit__.return_value = None
         mock_conn.commit.return_value = None
+        mock_conn.rollback.return_value = None
         mock_conn.close.return_value = None
 
-        # Simuler fetchone (ex: pour vérifier l'existence avant insert/update)
         mock_cursor.fetchone.return_value = None
 
-        # Simuler l'exécution (INSERT/UPDATE)
         mock_cursor.execute.return_value = None
         mock_cursor.rowcount = 1
 
@@ -109,7 +105,7 @@ class TestUserPreferences:
 
         response = self.client.post("/preferences/user-preferences", json=payload)
 
-        assert response.status_code == 200
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}. Response: {response.text}"
         assert response.json()["message"] == "Préférences mises à jour avec succès"
 
         mock_get_filters.assert_called_once()
@@ -128,15 +124,14 @@ class TestUserPreferences:
         mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
         mock_conn.cursor.return_value.__exit__.return_value = None
         mock_conn.commit.return_value = None
+        mock_conn.rollback.return_value = None
         mock_conn.close.return_value = None
 
-        # Simuler les préférences existantes avant la suppression
         mock_cursor.fetchone.return_value = {
             "source_preferences": "The Verge;TechCrunch",
             "video_channel_preferences": "OpenAI",
             "keyword_preferences": "AI;Deep Learning"
         }
-        # Simuler que la requête UPDATE ou DELETE réussit
         mock_cursor.execute.return_value = None
         mock_cursor.rowcount = 1
 
@@ -150,7 +145,7 @@ class TestUserPreferences:
             headers={"Content-Type": "application/json"}
         )
 
-        assert response.status_code == 200
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}. Response: {response.text}"
         assert response.json()["message"] == "Préférences mises à jour après suppression"
 
         mock_pool.get_connection.assert_called_once()
@@ -180,7 +175,7 @@ class TestUserPreferences:
             headers={"Content-Type": "application/json"}
         )
 
-        assert response.status_code == 404
+        assert response.status_code == 404, f"Expected 404, got {response.status_code}. Response: {response.text}"
         assert response.json()["detail"] == "Aucune préférence trouvée pour cet utilisateur."
 
         mock_pool.get_connection.assert_called_once()
@@ -191,7 +186,6 @@ class TestUserPreferences:
         mock_conn.rollback.assert_not_called()
         mock_conn.close.assert_called_once()
 
-    # Tests pour validation des préférences (statut 400)
     @patch("app.routes.user_preferences.get_available_filters")
     @patch("app.database.connection_pool")
     def test_post_user_preferences_invalid_value(self, mock_pool, mock_get_filters):
@@ -201,7 +195,6 @@ class TestUserPreferences:
             "keywords": ["AI", "Deep Learning"]
         }
 
-        # Simuler un payload avec une valeur non valide
         payload = {
             "source_preferences": ["Invalid Source"],
             "video_channel_preferences": ["OpenAI"],
@@ -210,7 +203,8 @@ class TestUserPreferences:
 
         response = self.client.post("/preferences/user-preferences", json=payload)
 
-        assert response.status_code == 400
+        assert response.status_code == 400, f"Expected 400, got {response.status_code}. Response: {response.text}"
+
 
         mock_get_filters.assert_called_once()
         mock_pool.get_connection.assert_not_called()
@@ -224,7 +218,6 @@ class TestUserPreferences:
             "keywords": ["AI", "Deep Learning"]
         }
 
-        # Simuler un payload avec une valeur non valide
         payload = {
             "source_preferences": ["Invalid Source"]
         }
@@ -235,7 +228,7 @@ class TestUserPreferences:
             headers={"Content-Type": "application/json"}
         )
 
-        assert response.status_code == 400
+        assert response.status_code == 400, f"Expected 400, got {response.status_code}. Response: {response.text}"
 
         mock_get_filters.assert_called_once()
         mock_pool.get_connection.assert_not_called()
