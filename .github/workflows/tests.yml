@@ -1,25 +1,15 @@
-name: API Tests
+name: Run Python Tests (Unit, Integration, End-to-End)
 
 on:
   push:
-    branches:
-      - main
-  workflow_dispatch:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
-  run-tests:
+  unit-tests:
+    name: Unit Tests
     runs-on: ubuntu-latest
-
-    services:
-      mysql:
-        image: mysql:8.0
-        ports:
-          - 3306:3306
-        env:
-          MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
-          MYSQL_DATABASE: api_test_db
-          MYSQL_USER: test_user
-          MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD_TEST_USER }}
 
     steps:
       - name: Checkout code
@@ -34,38 +24,54 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest requests
+          pip install pytest
 
-      - name: Wait for MySQL to be ready
+      - name: Run Unit Tests
         run: |
-          echo "Attente que MySQL soit prêt..."
-          for i in {1..60}; do
-            if mysql --connect-timeout=1 -h 127.0.0.1 -P 3306 -u ${{ env.DB_USER }} -p"${{ env.DB_PASSWORD }}" -e "SELECT 1" &> /dev/null; then
-              echo "MySQL est prêt !"
-              break
-            fi
-            echo "En attente de MySQL ($i)..."
-            sleep 1
-          done
-        env:
-          DB_USER: test_user
-          DB_PASSWORD: ${{ secrets.MYSQL_PASSWORD_TEST_USER }}
+          pytest tests/unit
 
-      - name: Set up Database Schema
-        run: |
-          echo "Configuration du schéma de base de données..."
-          mysql -h 127.0.0.1 -P 3306 -u ${{ env.DB_USER }} -p"${{ env.DB_PASSWORD }}" ${{ env.DB_NAME }} < schema.sql
-        env:
-          DB_USER: test_user
-          DB_PASSWORD: ${{ secrets.MYSQL_PASSWORD_TEST_USER }}
-          DB_NAME: api_test_db
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
 
-      - name: Run unit and integration tests (excluding generation tests)
-        env:
-          DB_HOST: 127.0.0.1
-          DB_PORT: 3306
-          DB_USER: test_user
-          DB_PASSWORD: ${{ secrets.MYSQL_PASSWORD_TEST_USER }}
-          DB_NAME: api_test_db
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11
+
+      - name: Install dependencies
         run: |
-          pytest tests/ -k "not test_generate_summaries and not test_generate_keywords and not test_generate_keywords_scientific_articles and not test_alerts" 
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Run Integration Tests
+        run: |
+          pytest tests/integration
+
+  end-to-end-tests:
+    name: End-to-End Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Run End-to-End Test
+        run: |
+          pytest tests/test_end_to_end.py
