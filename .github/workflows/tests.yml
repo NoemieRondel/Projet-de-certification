@@ -38,15 +38,19 @@ jobs:
 
       - name: Wait for MySQL to be ready
         run: |
-          echo "Attente que MySQL soit prêt..."
-          for i in {1..30}; do
-            if mysqladmin ping -h 127.0.0.1 -u root -p"${{ secrets.MYSQL_ROOT_PASSWORD }}" --silent; then
-              echo "MySQL est prêt !"
+          echo "Attente que MySQL soit prêt en utilisant le nom du service..."
+          for i in {1..60}; do
+            if mysql --connect-timeout=1 -h mysql -P 3306 -u ${{ env.DB_USER }} -p"${{ env.DB_PASSWORD }}" -e "SELECT 1" &> /dev/null; then
+              echo "MySQL est prêt et accessible via le nom du service !"
               break
             fi
-            echo "En attente de MySQL ($i)..."
-            sleep 2
+            echo "En attente de MySQL via 'mysql' ($i)..."
+            sleep 1
           done
+        env:
+          DB_USER: test_user
+          DB_PASSWORD: ${{ secrets.MYSQL_PASSWORD_TEST_USER }}
+
 
       - name: Set up Database Schema
         run: |
