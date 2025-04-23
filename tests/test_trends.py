@@ -1,5 +1,5 @@
 import pytest
-from httpx import AsyncClient
+from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
 import sys
 import os
@@ -14,27 +14,20 @@ if project_root not in sys.path:
 
 VALID_TOKEN = "Bearer faketoken123"
 
-# ==============================================================================
-# IMPORTANT : Simuler l'initialisation du pool de connexion AVANT d'importer app.main
 
-
-@patch('mysql.connector.pooling.MySQLConnectionPool')
 class TestTrends:
-# ==============================================================================
 
     from app.main import app
 
+    client = TestClient(app)
+
     @pytest.fixture(autouse=True)
     def mock_auth_dependency(self):
-        with patch("app.security.jwt_handler.jwt_required", return_value={"user_id": 1}) as mock:
-             yield mock
+        with patch("app.security.jwt_handler.jwt_required", return_value={"user_id": 1}):
+            yield
 
-    # ==========================================================================
-    # CORRECTION : Ajout de 'mock_pool' dans la signature pour recevoir le mock du patch de classe
-    @pytest.mark.asyncio
     @patch("app.database.execute_query")
-    async def test_get_trending_keywords(self, mock_pool, mock_execute_query):
-    # ==========================================================================
+    def test_get_trending_keywords(self, mock_execute_query):
         fake_keywords = [
             {"keyword": "AI", "count": 15},
             {"keyword": "machine learning", "count": 10},
@@ -43,12 +36,12 @@ class TestTrends:
 
         mock_execute_query.return_value = fake_keywords
 
-        async with AsyncClient(app=self.app, base_url="http://test") as ac:
-            response = await ac.get(
-                "/trends/keywords",
-                headers={"Authorization": VALID_TOKEN},
-                params={"last_days": 30, "limit": 10, "offset": 0}
-            )
+        response = self.client.get(
+            "/trends/keywords",
+            headers={"Authorization": VALID_TOKEN},
+            params={"last_days": 30, "limit": 10, "offset": 0}
+        )
+
 
         assert response.status_code == 200
         data = response.json()
@@ -57,20 +50,15 @@ class TestTrends:
         assert len(data["trending_keywords"]) > 0
         assert data["trending_keywords"][0]["keyword"] == "AI"
 
-    # ==========================================================================
-    # CORRECTION : Ajout de 'mock_pool' dans la signature
-    @pytest.mark.asyncio
     @patch("app.database.execute_query")
-    async def test_get_trending_keywords_invalid_dates(self, mock_pool, mock_execute_query):
-    # ==========================================================================
+    def test_get_trending_keywords_invalid_dates(self, mock_execute_query):
         mock_execute_query.return_value = []
 
-        async with AsyncClient(app=self.app, base_url="http://test") as ac:
-            response = await ac.get(
-                "/trends/keywords",
-                headers={"Authorization": VALID_TOKEN},
-                params={"start_date": "2025-01-01", "end_date": "2024-01-01"}
-            )
+        response = self.client.get(
+            "/trends/keywords",
+            headers={"Authorization": VALID_TOKEN},
+            params={"start_date": "2025-01-01", "end_date": "2024-01-01"}
+        )
 
         assert response.status_code == 400
         assert "La date de début doit être antérieure à la date de fin." in response.text

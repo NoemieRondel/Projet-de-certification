@@ -1,5 +1,5 @@
 import pytest
-from httpx import AsyncClient
+from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
 import sys
 import os
@@ -12,30 +12,22 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-# Token JWT factice pour les tests
 VALID_TOKEN = "Bearer faketoken123"
 
-# ==============================================================================
-# IMPORTANT : Simuler l'initialisation du pool de connexion AVANT d'importer app.main
 
-
-@patch('mysql.connector.pooling.MySQLConnectionPool')
 class TestScientificArticles:
-# ==============================================================================
 
     from app.main import app
 
+    client = TestClient(app)
+
     @pytest.fixture(autouse=True)
     def mock_auth_dependency(self):
-        with patch("app.security.jwt_handler.jwt_required", return_value={"user_id": 1}) as mock:
-             yield mock
+        with patch("app.security.jwt_handler.jwt_required", return_value={"user_id": 1}):
+            yield
 
-    # ==========================================================================
-    # CORRECTION : Ajout de 'mock_pool' dans la signature pour recevoir le mock du patch de classe
-    @pytest.mark.asyncio
     @patch("app.database.get_connection")
-    async def test_get_all_scientific_articles(self, mock_pool, mock_get_connection):
-    # ==========================================================================
+    def test_get_all_scientific_articles(self, mock_get_connection):
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
@@ -53,23 +45,19 @@ class TestScientificArticles:
             'abstract': 'This article discusses AI in healthcare.'
         }]
 
-        async with AsyncClient(app=self.app, base_url="http://test") as ac:
-            response = await ac.get(
-                "/scientific_articles/",
-                headers={"Authorization": VALID_TOKEN}
-            )
+        response = self.client.get(
+            "/scientific_articles/",
+            headers={"Authorization": VALID_TOKEN}
+        )
+
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
         assert len(data) > 0
         assert data[0]["title"] == "AI in Healthcare"
 
-    # ==========================================================================
-    # CORRECTION : Ajout de 'mock_pool' dans la signature
-    @pytest.mark.asyncio
     @patch("app.database.get_connection")
-    async def test_get_latest_scientific_articles(self, mock_pool, mock_get_connection):
-    # ==========================================================================
+    def test_get_latest_scientific_articles(self, mock_get_connection):
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
@@ -87,11 +75,10 @@ class TestScientificArticles:
             'abstract': 'Explores latest trends in NLP.'
         }]
 
-        async with AsyncClient(app=self.app, base_url="http://test") as ac:
-            response = await ac.get(
-                "/scientific_articles/latest",
-                headers={"Authorization": VALID_TOKEN}
-            )
+        response = self.client.get(
+            "/scientific_articles/latest",
+            headers={"Authorization": VALID_TOKEN}
+        )
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)

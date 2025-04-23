@@ -1,5 +1,5 @@
 import pytest
-from httpx import AsyncClient
+from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
 import sys
 import os
@@ -12,81 +12,116 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-# Token JWT factice pour les tests
 VALID_TOKEN = "Bearer faketoken123"
 
-# ==============================================================================
-# IMPORTANT : Simuler l'initialisation du pool de connexion AVANT d'importer app.main
 
-
-@patch('mysql.connector.pooling.MySQLConnectionPool')
 class TestMetrics:
-# ==============================================================================
 
     from app.main import app
 
+    client = TestClient(app)
+
     @pytest.fixture(autouse=True)
     def mock_auth_dependency(self):
-        with patch("app.security.jwt_handler.jwt_required", return_value={"user_id": 1}) as mock:
-             yield mock
+        with patch("app.security.jwt_handler.jwt_required", return_value={"user_id": 1}):
+            yield
 
-    # ==========================================================================
-    @pytest.mark.asyncio
-    @patch("app.routes.metrics.execute_query")
-    async def test_get_articles_by_source(self, mock_pool, mock_execute_query):
-    # ==========================================================================
+    @patch("app.database.get_connection")
+    def test_get_articles_by_source(self, mock_get_connection):
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_conn.cursor.return_value.__exit__.return_value = None
+        mock_get_connection.return_value = mock_conn
+
         mock_data = [{"source": "TechCrunch", "count": 42}]
-        mock_execute_query.return_value = mock_data
+        mock_cursor.fetchall.return_value = mock_data
 
-        async with AsyncClient(app=self.app, base_url="http://test") as ac:
-            response = await ac.get("/metrics/articles-by-source", headers={"Authorization": VALID_TOKEN})
+        response = self.client.get("/metrics/articles-by-source", headers={"Authorization": VALID_TOKEN})
+
         assert response.status_code == 200
         assert response.json() == mock_data
 
-    # ==========================================================================
-    @pytest.mark.asyncio
-    @patch("app.routes.metrics.execute_query")
-    async def test_get_videos_by_source(self, mock_pool, mock_execute_query):
-    # ==========================================================================
+        mock_get_connection.assert_called_once()
+        mock_conn.cursor.assert_called_once()
+        mock_cursor.execute.assert_called_once()
+        mock_cursor.fetchall.assert_called_once()
+        mock_conn.close.assert_called_once()
+
+    @patch("app.database.get_connection")
+    def test_get_videos_by_source(self, mock_get_connection):
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_conn.cursor.return_value.__exit__.return_value = None
+        mock_get_connection.return_value = mock_conn
+
         mock_data = [{"source": "YouTube", "count": 18}]
-        mock_execute_query.return_value = mock_data
+        mock_cursor.fetchall.return_value = mock_data
 
-        async with AsyncClient(app=self.app, base_url="http://test") as ac:
-            response = await ac.get("/metrics/videos-by-source", headers={"Authorization": VALID_TOKEN})
+        response = self.client.get("/metrics/videos-by-source", headers={"Authorization": VALID_TOKEN})
+
         assert response.status_code == 200
         assert response.json() == mock_data
 
-    # ==========================================================================
-    @pytest.mark.asyncio
-    @patch("app.routes.metrics.execute_query")
-    async def test_get_keyword_frequency(self, mock_pool, mock_execute_query):
-    # ==========================================================================
+        mock_get_connection.assert_called_once()
+        mock_conn.cursor.assert_called_once()
+        mock_cursor.execute.assert_called_once()
+        mock_cursor.fetchall.assert_called_once()
+        mock_conn.close.assert_called_once()
+
+    @patch("app.database.get_connection")
+    def test_get_keyword_frequency(self, mock_get_connection):
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_conn.cursor.return_value.__exit__.return_value = None
+        mock_get_connection.return_value = mock_conn
+
         mock_data = [{"keyword": "AI", "count": 10}]
-        mock_execute_query.return_value = mock_data
+        mock_cursor.fetchall.return_value = mock_data
 
-        async with AsyncClient(app=self.app, base_url="http://test") as ac:
-            response = await ac.get("/metrics/keyword-frequency", headers={"Authorization": VALID_TOKEN})
+        response = self.client.get("/metrics/keyword-frequency", headers={"Authorization": VALID_TOKEN})
+
         assert response.status_code == 200
         assert response.json() == mock_data
 
-    # ==========================================================================
-    @pytest.mark.asyncio
-    @patch("app.routes.metrics.execute_query")
-    async def test_get_scientific_keyword_frequency(self, mock_pool, mock_execute_query):
-    # ==========================================================================
+        mock_get_connection.assert_called_once()
+        mock_conn.cursor.assert_called_once()
+        mock_cursor.execute.assert_called_once()
+        mock_cursor.fetchall.assert_called_once()
+        mock_conn.close.assert_called_once()
+
+    @patch("app.database.get_connection")
+    def test_get_scientific_keyword_frequency(self, mock_get_connection):
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_conn.cursor.return_value.__exit__.return_value = None
+        mock_get_connection.return_value = mock_conn
+
         mock_data = [{"keyword": "deep learning", "count": 7}]
-        mock_execute_query.return_value = mock_data
+        mock_cursor.fetchall.return_value = mock_data
 
-        async with AsyncClient(app=self.app, base_url="http://test") as ac:
-            response = await ac.get("/metrics/scientific-keyword-frequency", headers={"Authorization": VALID_TOKEN})
+        response = self.client.get("/metrics/scientific-keyword-frequency", headers={"Authorization": VALID_TOKEN})
+
         assert response.status_code == 200
         assert response.json() == mock_data
 
-    # ==========================================================================
-    @pytest.mark.asyncio
-    @patch("app.routes.metrics.execute_query")
-    async def test_get_monitoring_logs(self, mock_pool, mock_execute_query):
-    # ==========================================================================
+        mock_get_connection.assert_called_once()
+        mock_conn.cursor.assert_called_once()
+        mock_cursor.execute.assert_called_once()
+        mock_cursor.fetchall.assert_called_once()
+        mock_conn.close.assert_called_once()
+
+    @patch("app.database.get_connection")
+    def test_get_monitoring_logs(self, mock_get_connection):
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_conn.cursor.return_value.__exit__.return_value = None
+        mock_get_connection.return_value = mock_conn
+
         now = datetime.utcnow().isoformat()
         mock_data = [{
             "timestamp": now,
@@ -102,11 +137,16 @@ class TestMetrics:
             "average_summary_word_count": 80.0
         }]
 
-        mock_execute_query.return_value = mock_data
+        mock_cursor.fetchall.return_value = mock_data
 
-        async with AsyncClient(app=self.app, base_url="http://test") as ac:
-            response = await ac.get("/metrics/monitoring-logs", headers={"Authorization": VALID_TOKEN})
+        response = self.client.get("/metrics/monitoring-logs", headers={"Authorization": VALID_TOKEN})
 
         assert response.status_code == 200
         assert isinstance(response.json(), list)
         assert len(response.json()) > 0
+
+        mock_get_connection.assert_called_once()
+        mock_conn.cursor.assert_called_once()
+        mock_cursor.execute.assert_called_once()
+        mock_cursor.fetchall.assert_called_once()
+        mock_conn.close.assert_called_once()

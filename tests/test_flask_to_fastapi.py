@@ -20,19 +20,17 @@ FASTAPI_PORT = 8001
 BASE_URL = f"http://localhost:{FASTAPI_PORT}"
 
 
-# ==============================================================================
-# IMPORTANT : Simuler l'initialisation du pool de connexion AVANT d'importer app.main
 with patch('mysql.connector.pooling.MySQLConnectionPool'):
     from app.main import app as fastapi_app
 
 
 # Fonction utilitaire pour démarrer FastAPI
 def start_fastapi():
-
     # Lancer le serveur Uvicorn avec l'application importée
     uvicorn.run(fastapi_app, host="0.0.0.0", port=FASTAPI_PORT, log_level="info")
 
 
+# Fixture pour démarrer le serveur FastAPI (au niveau du module, sans 'self')
 @pytest.fixture(scope="session", autouse=True)
 def fastapi_server_fixture():
     print("\nDémarrage du serveur FastAPI...")
@@ -55,8 +53,8 @@ def fastapi_server_fixture():
     print("\nArrêt du serveur FastAPI...")
 
 
+# La fonction de test d'intégration (au niveau du module, sans 'self')
 def test_flask_to_fastapi_register_login_and_dashboard_flow(fastapi_server_fixture):
-
     # --- Inscription ---
     register_payload = {
         "username": "flask_integration_test",
@@ -69,7 +67,7 @@ def test_flask_to_fastapi_register_login_and_dashboard_flow(fastapi_server_fixtu
 
     assert response.status_code in [200, 409], f"Échec de l'inscription : {response.text}"
 
-    # --- Connexion ---
+    # Connexion
     login_payload = {
         "email": register_payload["email"],
         "password": register_payload["password"]
@@ -82,7 +80,7 @@ def test_flask_to_fastapi_register_login_and_dashboard_flow(fastapi_server_fixtu
 
     headers = {"Authorization": f"Bearer {token}"}
 
-    # Récupération du dashboard (peut retourner 404 si pas de préférences existantes)
+    # Récupération du dashboard
     response = requests.get(f"{BASE_URL}/dashboard/", headers=headers)
     assert response.status_code in [200, 404], f"Erreur lors de l'accès au dashboard : {response.text}"
 
@@ -98,7 +96,7 @@ def test_flask_to_fastapi_register_login_and_dashboard_flow(fastapi_server_fixtu
         "keyword_preferences": ["AI", "Machine Learning"]
     }
 
-    # Endpoint PUT pour mettre à jour les préférences, en utilisant l'ID utilisateur
+    # Endpoint PUT pour mettre à jour les préférences
     response = requests.put(
         f"{BASE_URL}/preferences/{user_id}/filters",
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
@@ -111,7 +109,7 @@ def test_flask_to_fastapi_register_login_and_dashboard_flow(fastapi_server_fixtu
     assert response.status_code == 200, f"Échec de l'accès au dashboard après la mise à jour des préférences : {response.text}"
     data = response.json()
 
-    # Assertions pour vérifier la structure et le contenu de la réponse du dashboard
+    # Vérifications de la structure et le contenu de la réponse du dashboard
     assert "articles_by_source" in data
     assert isinstance(data["articles_by_source"], list)
     assert "metrics" in data

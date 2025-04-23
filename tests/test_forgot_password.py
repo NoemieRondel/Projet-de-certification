@@ -11,13 +11,8 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-# ==============================================================================
-# IMPORTANT : Simuler l'initialisation du pool de connexion AVANT d'importer app.main
 
-
-@patch('mysql.connector.pooling.MySQLConnectionPool')
 class TestForgotPassword:
-# ==============================================================================
 
     from app.main import app
     client = TestClient(app)
@@ -26,11 +21,9 @@ class TestForgotPassword:
     def fake_email(self):
         return "testuser@example.com"
 
-    # ==========================================================================
     @patch("app.database.get_connection")
     @patch("app.mailer.send_email")
-    def test_forgot_password_existing_user(self, mock_pool, mock_send_email, mock_get_connection, fake_email):
-    # ==========================================================================
+    def test_forgot_password_existing_user(self, mock_send_email, mock_get_connection, fake_email):
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_get_connection.return_value = mock_conn
@@ -58,11 +51,9 @@ class TestForgotPassword:
 
         mock_send_email.assert_called_once()
 
-    # ==========================================================================
     @patch("app.database.get_connection")
     @patch("app.mailer.send_email")
-    def test_forgot_password_non_existing_user(self, mock_pool, mock_send_email, mock_get_connection, fake_email):
-    # ==========================================================================
+    def test_forgot_password_non_existing_user(self, mock_send_email, mock_get_connection, fake_email):
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_get_connection.return_value = mock_conn

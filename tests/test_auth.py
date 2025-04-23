@@ -11,24 +11,16 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-# ==============================================================================
-# IMPORTANT : Simuler l'initialisation du pool de connexion AVANT d'importer app.main
 
-
-@patch('mysql.connector.pooling.MySQLConnectionPool')
 class TestAuth:
-# ==============================================================================
 
     from app.main import app
     client = TestClient(app)
 
-    # ==========================================================================
     @patch("app.database.get_connection")
-    # CORRECTION : Chemins des patchs pour hash_password et verify_password mis à jour
     @patch("app.security.password_handler.hash_password")
     @patch("app.security.password_handler.verify_password")
-    def test_register_and_login(self, mock_pool, mock_get_connection, mock_hash_password, mock_verify_password):
-    # ==========================================================================
+    def test_register_and_login(self, mock_get_connection, mock_hash_password, mock_verify_password):
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_get_connection.return_value = mock_conn
@@ -36,30 +28,24 @@ class TestAuth:
         mock_conn.cursor.return_value.__exit__.return_value = None
 
         def mock_execute_side_effect(query, params=None):
-            # Logique de simulation basée sur la requête exécutée
             if "INSERT INTO users" in query:
                 mock_cursor.rowcount = 1
                 mock_cursor.lastrowid = 1
             elif "SELECT" in query and "email" in query:
-                if mock_cursor.execute.call_count == 1 and "INSERT" not in mock_cursor.execute.call_args[0][0]:
-                    mock_cursor.fetchone.return_value = None
+                executed_queries = [call[0][0] for call in mock_cursor.execute.call_args_list]
 
-                elif mock_cursor.execute.call_count > 1:
-                     # Simulation pour la connexion (utilisateur existe)
-                     mock_cursor.fetchone.return_value = {"id": 1, "username": "pytester", "email": "pytest@example.com", "hashed_password": "fake_hashed_password"}
+                if "INSERT INTO users" not in " ".join(executed_queries):
+                    mock_cursor.fetchone.return_value = None
                 else:
-                     mock_cursor.fetchone.return_value = None
+                    mock_cursor.fetchone.return_value = {"id": 1, "username": "pytester", "email": "pytest@example.com", "hashed_password": "fake_hashed_password"}
 
             else:
-                # Cas par défaut ou pour d'autres requêtes inattendues
                 mock_cursor.fetchone.return_value = None
                 mock_cursor.fetchall.return_value = []
                 mock_cursor.rowcount = 0
 
         mock_cursor.execute.side_effect = mock_execute_side_effect
 
-        # Simuler les fonctions de hachage et de vérification de mot de passe
-        # Configurez les retours simulés
         mock_hash_password.return_value = "fake_hashed_password"
         mock_verify_password.return_value = True
 
@@ -70,7 +56,7 @@ class TestAuth:
             "password": "StrongPass123!"
         }
 
-        # --- Étape 1 : Inscription ---
+        # Etape 1 : Inscription
         register_response = self.client.post("/register", json=user_data)
 
         assert register_response.status_code == 200, f"Échec register: {register_response.text}"
@@ -78,7 +64,7 @@ class TestAuth:
         assert "access_token" in token_data
         assert token_data["token_type"] == "bearer"
 
-        # --- Étape 2 : Connexion ---
+        # Etape 2 : Connexion
         login_payload = {
             "email": user_data["email"],
             "password": user_data["password"]

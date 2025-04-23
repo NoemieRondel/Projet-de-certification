@@ -12,23 +12,15 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-# ==============================================================================
-# IMPORTANT : Simuler l'initialisation du pool de connexion AVANT d'importer app.main
 
-
-@patch('mysql.connector.pooling.MySQLConnectionPool')
 class TestResetPassword:
-# ==============================================================================
 
     from app.main import app
     client = TestClient(app)
 
-    # ==========================================================================
-    # CORRECTION : Ajout de 'mock_pool' dans la signature pour recevoir le mock du patch de classe
     @patch("app.database.get_connection")
-    @patch("app.security.auth_utils.hash_password")
-    def test_reset_password_success(self, mock_pool, mock_get_connection, mock_hash_password):
-    # ==========================================================================
+    @patch("app.security.password_handler.hash_password")
+    def test_reset_password_success(self, mock_get_connection, mock_hash_password):
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_get_connection.return_value = mock_conn
@@ -60,11 +52,8 @@ class TestResetPassword:
 
         mock_hash_password.assert_called_once_with("super_secure_pass123!")
 
-    # ==========================================================================
-    # CORRECTION : Ajout de 'mock_pool' dans la signature
     @patch("app.database.get_connection")
-    def test_reset_password_invalid_token(self, mock_pool, mock_get_connection):
-    # ==========================================================================
+    def test_reset_password_invalid_token(self, mock_get_connection):
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_get_connection.return_value = mock_conn
@@ -85,11 +74,8 @@ class TestResetPassword:
         mock_cursor.fetchone.assert_called_once()
         mock_conn.close.assert_called_once()
 
-    # ==========================================================================
-    # CORRECTION : Ajout de 'mock_pool' dans la signature
-    @patch("app.database.get_connection") # Simuler get_connection
-    def test_reset_password_expired_token(self, mock_pool, mock_get_connection):
-    # ==========================================================================
+    @patch("app.database.get_connection")
+    def test_reset_password_expired_token(self, mock_get_connection):
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_get_connection.return_value = mock_conn

@@ -1,5 +1,5 @@
 import pytest
-from httpx import AsyncClient
+from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
 import sys
 import os
@@ -12,27 +12,20 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-# ==============================================================================
-# IMPORTANT : Simuler l'initialisation du pool de connexion AVANT d'importer app.main
 
-
-@patch('mysql.connector.pooling.MySQLConnectionPool')
 class TestDashboard:
-# ==============================================================================
 
     from app.main import app
 
+    client = TestClient(app)
+
     @pytest.fixture(autouse=True)
     def mock_auth_dependency(self):
-        with patch("app.security.jwt_handler.jwt_required", return_value={"user_id": 1}) as mock:
-             yield mock
+        with patch("app.security.jwt_handler.jwt_required", return_value={"user_id": 1}):
+            yield
 
-    # ==========================================================================
-    @pytest.mark.asyncio
     @patch("app.database.get_connection")
-    async def test_get_dashboard_success(self, mock_pool, mock_get_connection):
-    # ==========================================================================
-        # Mock de la connexion MySQL et du curseur
+    def test_get_dashboard_success(self, mock_get_connection):
         mock_cursor = MagicMock()
         mock_connection = MagicMock()
         mock_connection.cursor.return_value.__enter__.return_value = mock_cursor
@@ -41,13 +34,13 @@ class TestDashboard:
 
         # Résultats mockés
         mock_cursor.fetchone.side_effect = [
-            {"source_preferences": "TechCrunch", "video_channel_preferences": "AI_Channel", "keyword_preferences": "AI;ML"},            {"count": 2},  # articles_count pour les sources
+            {"source_preferences": "TechCrunch", "video_channel_preferences": "AI_Channel", "keyword_preferences": "AI;ML"},
+            {"count": 2},  # articles_count pour les sources
             {"count": 1},  # articles_count pour les mots-clés
             {"count": 1},  # scientific_articles_count
             {"count": 1},  # videos_count
         ]
 
-        # Formater les objets datetime en chaînes si votre response_model API attend des chaînes
         now_str = datetime.now().isoformat()
 
         mock_cursor.fetchall.side_effect = [
@@ -68,8 +61,7 @@ class TestDashboard:
             ],
         ]
 
-        async with AsyncClient(app=self.app, base_url="http://test") as ac:
-            response = await ac.get("/dashboard/")
+        response = self.client.get("/dashboard/")
 
         assert response.status_code == 200
         data = response.json()
@@ -87,12 +79,8 @@ class TestDashboard:
         assert "metrics" in data
         assert isinstance(data["metrics"], dict)
 
-    # ==========================================================================
-    @pytest.mark.asyncio
     @patch("app.database.get_connection")
-    async def test_dashboard_missing_preferences(self, mock_pool, mock_get_connection):
-    # ==========================================================================
-        # Mock de la connexion MySQL et du curseur
+    def test_dashboard_missing_preferences(self, mock_get_connection):
         mock_cursor = MagicMock()
         mock_connection = MagicMock()
         mock_connection.cursor.return_value.__enter__.return_value = mock_cursor
@@ -101,8 +89,7 @@ class TestDashboard:
 
         mock_cursor.fetchone.return_value = None
 
-        async with AsyncClient(app=self.app, base_url="http://test") as ac:
-            response = await ac.get("/dashboard/")
+        response = self.client.get("/dashboard/")
 
         assert response.status_code == 404
         assert response.json()["detail"] == "No preferences found for user"

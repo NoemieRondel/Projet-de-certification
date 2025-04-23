@@ -12,29 +12,18 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 
-# ==============================================================================
-# IMPORTANT : Simuler l'initialisation du pool de connexion avant d'importer app.main
-
-@patch('mysql.connector.pooling.MySQLConnectionPool')
 class TestArticles:
 
-#==============================================================================
-
-    # Importez app.main après avoir appliqué le patch au niveau de la classe
     from app.main import app
     client = TestClient(app)
 
-    # Fixture pour simuler jwt_required
     @pytest.fixture(autouse=True)
     def mock_jwt(self):
         with patch("app.security.jwt_handler.jwt_required", return_value={"user_id": 1}):
             yield
 
-    # ==========================================================================
-    @patch("app.database.get_connection") # Simule get_connection
-    def test_get_all_articles_without_filters(self, mock_pool, mock_get_connection):
-    # ==========================================================================
-        # Mock de la base
+    @patch("app.database.get_connection")
+    def test_get_all_articles_without_filters(self, mock_get_connection):
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
@@ -64,10 +53,8 @@ class TestArticles:
         assert data[0]["title"] == "Article 1"
         assert data[0]["source"] == "TechCrunch"
 
-    # ==========================================================================
-    @patch("app.database.get_connection") # Simule get_connection
-    def test_get_all_articles_with_filters(self, mock_pool, mock_get_connection):
-    # ==========================================================================
+    @patch("app.database.get_connection")
+    def test_get_all_articles_with_filters(self, mock_get_connection):
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
@@ -94,10 +81,8 @@ class TestArticles:
         assert len(data) == 1
         assert data[0]["source"] == "Wired"
 
-    # ==========================================================================
     @patch("app.database.get_connection")
-    def test_get_all_articles_not_found(self, mock_pool, mock_get_connection):
-    # ==========================================================================
+    def test_get_all_articles_not_found(self, mock_get_connection):
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
@@ -112,10 +97,8 @@ class TestArticles:
         assert response.status_code == 404
         assert response.json()["detail"] == "Aucun article trouvé."
 
-    # ==========================================================================
     @patch("app.database.get_connection")
-    def test_get_latest_articles(self, mock_pool, mock_get_connection):
-    # ==========================================================================
+    def test_get_latest_articles(self, mock_get_connection):
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
