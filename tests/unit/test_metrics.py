@@ -1,10 +1,11 @@
+import os
+import sys
+from datetime import datetime
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
-import sys
-import os
-from datetime import datetime
 
+# Ajout du chemin du projet pour que FastAPI trouve le module 'app'
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
@@ -20,7 +21,7 @@ class TestMetrics:
     def mock_auth_dependency(self):
         # Vérifier ce chemin de patch pour jwt_required
         with patch("app.security.jwt_handler.jwt_required", return_value={"user_id": 1}):
-             yield
+            yield
 
     @patch("app.database.get_connection")
     def test_get_articles_by_source(self, mock_get_connection):

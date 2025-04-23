@@ -17,7 +17,7 @@ class TestUserPreferences:
     def mock_auth_dependency(self):
         # Vérifier ce chemin de patch pour jwt_required
         with patch("app.security.jwt_handler.jwt_required", return_value={"user_id": 1}):
-             yield
+            yield
 
     @patch("app.user_preferences_route.get_available_filters")
     @patch("app.database.get_connection")

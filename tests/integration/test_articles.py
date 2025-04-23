@@ -1,6 +1,5 @@
 import pytest
-from fastapi.testclient import TestClient # Utiliser TestClient pour les tests unitaires
-# from httpx import AsyncClient # Supprimer l'importation de AsyncClient si elle existe
+from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
 import sys
 import os
