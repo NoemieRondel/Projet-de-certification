@@ -38,24 +38,23 @@ jobs:
 
       - name: Wait for MySQL to be ready
         run: |
-          echo "Attente que MySQL soit prêt en utilisant le nom du service..."
+          echo "Attente que MySQL soit prêt..."
           for i in {1..60}; do
-            if mysql --connect-timeout=1 -h mysql -P 3306 -u ${{ env.DB_USER }} -p"${{ env.DB_PASSWORD }}" -e "SELECT 1" &> /dev/null; then
-              echo "MySQL est prêt et accessible via le nom du service !"
+            if mysql --connect-timeout=1 -h 127.0.0.1 -P 3306 -u ${{ env.DB_USER }} -p"${{ env.DB_PASSWORD }}" -e "SELECT 1" &> /dev/null; then
+              echo "MySQL est prêt !"
               break
             fi
-            echo "En attente de MySQL via 'mysql' ($i)..."
+            echo "En attente de MySQL ($i)..."
             sleep 1
           done
         env:
           DB_USER: test_user
           DB_PASSWORD: ${{ secrets.MYSQL_PASSWORD_TEST_USER }}
 
-
       - name: Set up Database Schema
         run: |
           echo "Configuration du schéma de base de données..."
-          mysql -h mysql -P 3306 -u ${{ env.DB_USER }} -p"${{ env.DB_PASSWORD }}" ${{ env.DB_NAME }} < schema.sql
+          mysql -h 127.0.0.1 -P 3306 -u ${{ env.DB_USER }} -p"${{ env.DB_PASSWORD }}" ${{ env.DB_NAME }} < schema.sql
         env:
           DB_USER: test_user
           DB_PASSWORD: ${{ secrets.MYSQL_PASSWORD_TEST_USER }}
@@ -63,7 +62,7 @@ jobs:
 
       - name: Run unit and integration tests (excluding generation tests)
         env:
-          DB_HOST: mysql
+          DB_HOST: 127.0.0.1
           DB_PORT: 3306
           DB_USER: test_user
           DB_PASSWORD: ${{ secrets.MYSQL_PASSWORD_TEST_USER }}
