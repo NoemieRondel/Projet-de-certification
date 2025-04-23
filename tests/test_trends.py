@@ -5,10 +5,7 @@ import sys
 import os
 from datetime import datetime, timedelta
 
-# Obtient le chemin absolu du répertoire racine du projet
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-
-# Ajoute le répertoire racine à sys.path s'il n'y est pas déjà
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
@@ -16,13 +13,12 @@ VALID_TOKEN = "Bearer faketoken123"
 
 
 class TestTrends:
-
     from app.main import app
-
     client = TestClient(app)
 
     @pytest.fixture(autouse=True)
     def mock_auth_dependency(self):
+        # Vérifier ce chemin de patch pour jwt_required
         with patch("app.security.jwt_handler.jwt_required", return_value={"user_id": 1}):
             yield
 
@@ -36,12 +32,12 @@ class TestTrends:
 
         mock_execute_query.return_value = fake_keywords
 
+        # Vérifier le chemin de l'endpoint
         response = self.client.get(
             "/trends/keywords",
             headers={"Authorization": VALID_TOKEN},
             params={"last_days": 30, "limit": 10, "offset": 0}
         )
-
 
         assert response.status_code == 200
         data = response.json()
@@ -50,10 +46,10 @@ class TestTrends:
         assert len(data["trending_keywords"]) > 0
         assert data["trending_keywords"][0]["keyword"] == "AI"
 
-    @patch("app.database.execute_query")
-    def test_get_trending_keywords_invalid_dates(self, mock_execute_query):
-        mock_execute_query.return_value = []
+        mock_execute_query.assert_called_once()
 
+    def test_get_trending_keywords_invalid_dates(self):
+        # Vérifier le chemin de l'endpoint
         response = self.client.get(
             "/trends/keywords",
             headers={"Authorization": VALID_TOKEN},
@@ -61,4 +57,5 @@ class TestTrends:
         )
 
         assert response.status_code == 400
-        assert "La date de début doit être antérieure à la date de fin." in response.text
+        # Vérifier le message d'erreur exact
+        assert response.json()["detail"] == "La date de début doit être antérieure à la date de fin."

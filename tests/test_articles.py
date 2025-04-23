@@ -1,5 +1,6 @@
 import pytest
-from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient # Utiliser TestClient pour les tests unitaires
+# from httpx import AsyncClient # Supprimer l'importation de AsyncClient si elle existe
 from unittest.mock import patch, MagicMock
 import sys
 import os
@@ -11,6 +12,8 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
+VALID_TOKEN = "Bearer faketoken123"
+
 
 class TestArticles:
 
@@ -19,8 +22,8 @@ class TestArticles:
 
     @pytest.fixture(autouse=True)
     def mock_jwt(self):
-        with patch("app.security.jwt_handler.jwt_required", return_value={"user_id": 1}):
-            yield
+        with patch("app.security.jwt_handler.jwt_required", return_value={"user_id": 1}) as mock:
+            yield mock
 
     @patch("app.database.get_connection")
     def test_get_all_articles_without_filters(self, mock_get_connection):
@@ -53,6 +56,12 @@ class TestArticles:
         assert data[0]["title"] == "Article 1"
         assert data[0]["source"] == "TechCrunch"
 
+        mock_get_connection.assert_called_once()
+        mock_conn.cursor.assert_called_once()
+        mock_cursor.execute.assert_called_once()
+        mock_cursor.fetchall.assert_called_once()
+        mock_conn.close.assert_called_once()
+
     @patch("app.database.get_connection")
     def test_get_all_articles_with_filters(self, mock_get_connection):
         mock_conn = MagicMock()
@@ -81,6 +90,12 @@ class TestArticles:
         assert len(data) == 1
         assert data[0]["source"] == "Wired"
 
+        mock_get_connection.assert_called_once()
+        mock_conn.cursor.assert_called_once()
+        mock_cursor.execute.assert_called_once()
+        mock_cursor.fetchall.assert_called_once()
+        mock_conn.close.assert_called_once()
+
     @patch("app.database.get_connection")
     def test_get_all_articles_not_found(self, mock_get_connection):
         mock_conn = MagicMock()
@@ -90,12 +105,19 @@ class TestArticles:
 
         mock_get_connection.return_value = mock_conn
 
+        # Simuler aucun article trouvé
         mock_cursor.fetchall.return_value = []
 
         response = self.client.get("/articles/")
 
         assert response.status_code == 404
         assert response.json()["detail"] == "Aucun article trouvé."
+
+        mock_get_connection.assert_called_once()
+        mock_conn.cursor.assert_called_once()
+        mock_cursor.execute.assert_called_once()
+        mock_cursor.fetchall.assert_called_once()
+        mock_conn.close.assert_called_once()
 
     @patch("app.database.get_connection")
     def test_get_latest_articles(self, mock_get_connection):
@@ -125,3 +147,9 @@ class TestArticles:
         assert len(data) == 1
         assert data[0]["title"] == "Dernier article"
         assert data[0]["source"] == "TechCrunch"
+
+        mock_get_connection.assert_called_once()
+        mock_conn.cursor.assert_called_once()
+        mock_cursor.execute.assert_called_once()
+        mock_cursor.fetchall.assert_called_once()
+        mock_conn.close.assert_called_once()

@@ -5,10 +5,7 @@ import sys
 import os
 from datetime import datetime
 
-# Obtient le chemin absolu du répertoire racine du projet
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-
-# Ajoute le répertoire racine à sys.path s'il n'y est pas déjà
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
@@ -16,15 +13,14 @@ VALID_TOKEN = "Bearer faketoken123"
 
 
 class TestMetrics:
-
     from app.main import app
-
     client = TestClient(app)
 
     @pytest.fixture(autouse=True)
     def mock_auth_dependency(self):
+        # Vérifier ce chemin de patch pour jwt_required
         with patch("app.security.jwt_handler.jwt_required", return_value={"user_id": 1}):
-            yield
+             yield
 
     @patch("app.database.get_connection")
     def test_get_articles_by_source(self, mock_get_connection):
@@ -37,6 +33,7 @@ class TestMetrics:
         mock_data = [{"source": "TechCrunch", "count": 42}]
         mock_cursor.fetchall.return_value = mock_data
 
+        # Vérifier le chemin de l'endpoint
         response = self.client.get("/metrics/articles-by-source", headers={"Authorization": VALID_TOKEN})
 
         assert response.status_code == 200
@@ -59,6 +56,7 @@ class TestMetrics:
         mock_data = [{"source": "YouTube", "count": 18}]
         mock_cursor.fetchall.return_value = mock_data
 
+        # Vérifier le chemin de l'endpoint
         response = self.client.get("/metrics/videos-by-source", headers={"Authorization": VALID_TOKEN})
 
         assert response.status_code == 200
@@ -81,6 +79,7 @@ class TestMetrics:
         mock_data = [{"keyword": "AI", "count": 10}]
         mock_cursor.fetchall.return_value = mock_data
 
+        # Vérifier le chemin de l'endpoint
         response = self.client.get("/metrics/keyword-frequency", headers={"Authorization": VALID_TOKEN})
 
         assert response.status_code == 200
@@ -103,6 +102,7 @@ class TestMetrics:
         mock_data = [{"keyword": "deep learning", "count": 7}]
         mock_cursor.fetchall.return_value = mock_data
 
+        # Vérifier le chemin de l'endpoint
         response = self.client.get("/metrics/scientific-keyword-frequency", headers={"Authorization": VALID_TOKEN})
 
         assert response.status_code == 200
@@ -122,7 +122,10 @@ class TestMetrics:
         mock_conn.cursor.return_value.__exit__.return_value = None
         mock_get_connection.return_value = mock_conn
 
-        now = datetime.utcnow().isoformat()
+        # Simuler la date et la convertir en string
+        now = datetime.utcnow()
+        now_str = now.isoformat()
+
         mock_data = [{
             "timestamp": now,
             "script": "collect_articles.py",
@@ -139,11 +142,14 @@ class TestMetrics:
 
         mock_cursor.fetchall.return_value = mock_data
 
+        # Vérifier le chemin de l'endpoint
         response = self.client.get("/metrics/monitoring-logs", headers={"Authorization": VALID_TOKEN})
 
         assert response.status_code == 200
         assert isinstance(response.json(), list)
         assert len(response.json()) > 0
+        # Vérifier que le timestamp est bien converti en string dans JSON
+        assert response.json()[0]["timestamp"] == now_str
 
         mock_get_connection.assert_called_once()
         mock_conn.cursor.assert_called_once()
