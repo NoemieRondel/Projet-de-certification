@@ -5,7 +5,8 @@ import sys
 import os
 
 # Obtient le chemin absolu du répertoire racine du projet
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+current_file_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(current_file_dir, '..', '..'))
 
 # Ajoute le répertoire racine à sys.path s'il n'y est pas déjà
 if project_root not in sys.path:
