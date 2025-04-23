@@ -5,126 +5,139 @@ import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
 
-# Ajout du chemin du projet pour que FastAPI trouve le module 'app'
 current_file_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.abspath(os.path.join(current_file_dir, '..', '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-VALID_TOKEN = "Bearer faketoken123"
+from app.security import get_current_user
+from app.main import app
 
 
 class TestMetrics:
-    from app.main import app
     client = TestClient(app)
 
-    @pytest.fixture(autouse=True)
-    def mock_auth_dependency(self):
-        # Vérifier ce chemin de patch pour jwt_required
-        with patch("app.security.jwt_handler.jwt_required", return_value={"user_id": 1}):
-            yield
+    @pytest.fixture(autouse=True, scope="class")
+    def setup_class_auth_override(self):
+        class MockUser:
+            id = 1
+            username = "testuser"
+            email = "test@example.com"
 
-    @patch("app.database.get_connection")
-    def test_get_articles_by_source(self, mock_get_connection):
+        def mock_get_current_user_func():
+            return MockUser()
+
+        self.app.dependency_overrides[get_current_user] = mock_get_current_user_func
+
+        yield
+
+        self.app.dependency_overrides.clear()
+
+    @patch("app.database.connection_pool")
+    def test_get_articles_by_source(self, mock_pool):
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
+
+        mock_pool.get_connection.return_value = mock_conn
+
         mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
         mock_conn.cursor.return_value.__exit__.return_value = None
-        mock_get_connection.return_value = mock_conn
 
+        mock_conn.close.return_value = None
         mock_data = [{"source": "TechCrunch", "count": 42}]
         mock_cursor.fetchall.return_value = mock_data
 
-        # Vérifier le chemin de l'endpoint
-        response = self.client.get("/metrics/articles-by-source", headers={"Authorization": VALID_TOKEN})
+        response = self.client.get("/metrics/articles-by-source")
 
         assert response.status_code == 200
         assert response.json() == mock_data
 
-        mock_get_connection.assert_called_once()
+        # Vérifications des appels aux mocks
+        mock_pool.get_connection.assert_called_once()
         mock_conn.cursor.assert_called_once()
         mock_cursor.execute.assert_called_once()
         mock_cursor.fetchall.assert_called_once()
         mock_conn.close.assert_called_once()
 
-    @patch("app.database.get_connection")
-    def test_get_videos_by_source(self, mock_get_connection):
+    @patch("app.database.connection_pool")
+    def test_get_videos_by_source(self, mock_pool):
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
+        mock_pool.get_connection.return_value = mock_conn
         mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
         mock_conn.cursor.return_value.__exit__.return_value = None
-        mock_get_connection.return_value = mock_conn
+        mock_conn.close.return_value = None
 
         mock_data = [{"source": "YouTube", "count": 18}]
         mock_cursor.fetchall.return_value = mock_data
 
-        # Vérifier le chemin de l'endpoint
-        response = self.client.get("/metrics/videos-by-source", headers={"Authorization": VALID_TOKEN})
+        response = self.client.get("/metrics/videos-by-source")
 
         assert response.status_code == 200
         assert response.json() == mock_data
 
-        mock_get_connection.assert_called_once()
+        mock_pool.get_connection.assert_called_once()
         mock_conn.cursor.assert_called_once()
         mock_cursor.execute.assert_called_once()
         mock_cursor.fetchall.assert_called_once()
         mock_conn.close.assert_called_once()
 
-    @patch("app.database.get_connection")
-    def test_get_keyword_frequency(self, mock_get_connection):
+    @patch("app.database.connection_pool")
+    def test_get_keyword_frequency(self, mock_pool):
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
+        mock_pool.get_connection.return_value = mock_conn
         mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
         mock_conn.cursor.return_value.__exit__.return_value = None
-        mock_get_connection.return_value = mock_conn
+        mock_conn.close.return_value = None
 
         mock_data = [{"keyword": "AI", "count": 10}]
         mock_cursor.fetchall.return_value = mock_data
 
-        # Vérifier le chemin de l'endpoint
-        response = self.client.get("/metrics/keyword-frequency", headers={"Authorization": VALID_TOKEN})
+        response = self.client.get("/metrics/keyword-frequency")
 
         assert response.status_code == 200
         assert response.json() == mock_data
 
-        mock_get_connection.assert_called_once()
+        mock_pool.get_connection.assert_called_once()
         mock_conn.cursor.assert_called_once()
         mock_cursor.execute.assert_called_once()
         mock_cursor.fetchall.assert_called_once()
         mock_conn.close.assert_called_once()
 
-    @patch("app.database.get_connection")
-    def test_get_scientific_keyword_frequency(self, mock_get_connection):
+    @patch("app.database.connection_pool")
+    def test_get_scientific_keyword_frequency(self, mock_pool):
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
+        mock_pool.get_connection.return_value = mock_conn
         mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
         mock_conn.cursor.return_value.__exit__.return_value = None
-        mock_get_connection.return_value = mock_conn
+        mock_conn.close.return_value = None
 
         mock_data = [{"keyword": "deep learning", "count": 7}]
         mock_cursor.fetchall.return_value = mock_data
 
-        # Vérifier le chemin de l'endpoint
-        response = self.client.get("/metrics/scientific-keyword-frequency", headers={"Authorization": VALID_TOKEN})
+        response = self.client.get("/metrics/scientific-keyword-frequency")
 
         assert response.status_code == 200
         assert response.json() == mock_data
 
-        mock_get_connection.assert_called_once()
+        mock_pool.get_connection.assert_called_once()
         mock_conn.cursor.assert_called_once()
         mock_cursor.execute.assert_called_once()
         mock_cursor.fetchall.assert_called_once()
         mock_conn.close.assert_called_once()
 
-    @patch("app.database.get_connection")
-    def test_get_monitoring_logs(self, mock_get_connection):
+    @patch("app.database.connection_pool")
+    def test_get_monitoring_logs(self, mock_pool):
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
+        mock_pool.get_connection.return_value = mock_conn
         mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
         mock_conn.cursor.return_value.__exit__.return_value = None
-        mock_get_connection.return_value = mock_conn
+        mock_conn.close.return_value = None
 
-        # Simuler la date et la convertir en string
+        # Simuler la date (maintenu pour la logique de test)
         now = datetime.utcnow()
         now_str = now.isoformat()
 
@@ -144,16 +157,15 @@ class TestMetrics:
 
         mock_cursor.fetchall.return_value = mock_data
 
-        # Vérifier le chemin de l'endpoint
-        response = self.client.get("/metrics/monitoring-logs", headers={"Authorization": VALID_TOKEN})
+        response = self.client.get("/metrics/monitoring-logs")
 
         assert response.status_code == 200
         assert isinstance(response.json(), list)
         assert len(response.json()) > 0
-        # Vérifier que le timestamp est bien converti en string dans JSON
+
         assert response.json()[0]["timestamp"] == now_str
 
-        mock_get_connection.assert_called_once()
+        mock_pool.get_connection.assert_called_once()
         mock_conn.cursor.assert_called_once()
         mock_cursor.execute.assert_called_once()
         mock_cursor.fetchall.assert_called_once()

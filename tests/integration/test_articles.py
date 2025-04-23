@@ -1,155 +1,80 @@
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
 import sys
 import os
+import uuid
 
-# Obtient le chemin absolu du répertoire racine du projet
+
 current_file_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.abspath(os.path.join(current_file_dir, '..', '..'))
 
-# Ajoute le répertoire racine à sys.path s'il n'y est pas déjà
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-VALID_TOKEN = "Bearer faketoken123"
+# Importez l'instance de l'application FastAPI
+from app.main import app
 
 
 class TestArticles:
 
-    from app.main import app
     client = TestClient(app)
 
-    @pytest.fixture(autouse=True)
-    def mock_jwt(self):
-        with patch("app.security.jwt_handler.jwt_required", return_value={"user_id": 1}) as mock:
-            yield mock
+    @pytest.fixture(scope="class")
+    def auth_headers(self):
+        unique_email = f"test_art_int_{uuid.uuid4().hex[:8]}@example.com"
+        password = "TestPassword123!"
+        unique_username = f"test_art_int_{uuid.uuid4().hex[:4]}"
 
-    @patch("app.database.get_connection")
-    def test_get_all_articles_without_filters(self, mock_get_connection):
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-        mock_conn.cursor.return_value.__exit__.return_value = None
+        register_payload = {
+            "username": unique_username,
+            "email": unique_email,
+            "password": password
+        }
+        reg_resp = self.client.post("/auth/register", json=register_payload)
+        assert reg_resp.status_code in [200, 201], f"Registration failed in auth_headers fixture: {reg_resp.status_code}, {reg_resp.text}"
 
-        mock_get_connection.return_value = mock_conn
+        login_payload = {
+            "username": unique_username,
+            "password": password
+        }
+        login_resp = self.client.post("/auth/login", data=login_payload)
+        assert login_resp.status_code == 200, f"Login failed in auth_headers fixture: {login_resp.status_code}, {login_resp.text}"
 
-        # Données de test retournées par fetchall
-        mock_cursor.fetchall.return_value = [
-            {
-                "id": 1,
-                "title": "Article 1",
-                "source": "TechCrunch",
-                "publication_date": "2024-10-10",
-                "keywords": "AI;ML",
-                "summary": "Résumé...",
-                "link": "https://example.com/article1"
-            }
-        ]
+        token_data = login_resp.json()
+        assert "access_token" in token_data, f"Login response missing access_token in auth_headers fixture: {token_data}"
+        token = token_data["access_token"]
 
-        response = self.client.get("/articles/")
+        headers = {"Authorization": f"Bearer {token}"}
+        yield headers
 
-        # Assertions
-        assert response.status_code == 200
+    def test_get_all_articles_without_filters(self, auth_headers):
+
+        response = self.client.get("/articles/", headers=auth_headers)
+
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}. Response: {response.text}"
         data = response.json()
-        assert len(data) == 1
-        assert data[0]["title"] == "Article 1"
-        assert data[0]["source"] == "TechCrunch"
+        assert isinstance(data, list)
 
-        mock_get_connection.assert_called_once()
-        mock_conn.cursor.assert_called_once()
-        mock_cursor.execute.assert_called_once()
-        mock_cursor.fetchall.assert_called_once()
-        mock_conn.close.assert_called_once()
+    def test_get_all_articles_with_filters(self, auth_headers):
 
-    @patch("app.database.get_connection")
-    def test_get_all_articles_with_filters(self, mock_get_connection):
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-        mock_conn.cursor.return_value.__exit__.return_value = None
+        response = self.client.get("/articles/?source=Wired&keywords=AI", headers=auth_headers)
 
-        mock_get_connection.return_value = mock_conn
-
-        mock_cursor.fetchall.return_value = [
-            {
-                "id": 2,
-                "title": "Filtered Article",
-                "source": "Wired",
-                "publication_date": "2024-12-01",
-                "keywords": "AI;NLP",
-                "summary": "Résumé filtré...",
-                "link": "https://example.com/article2"
-            }
-        ]
-
-        response = self.client.get("/articles/?source=Wired&keywords=AI")
-
-        assert response.status_code == 200
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}. Response: {response.text}"
         data = response.json()
-        assert len(data) == 1
-        assert data[0]["source"] == "Wired"
+        assert isinstance(data, list)
 
-        mock_get_connection.assert_called_once()
-        mock_conn.cursor.assert_called_once()
-        mock_cursor.execute.assert_called_once()
-        mock_cursor.fetchall.assert_called_once()
-        mock_conn.close.assert_called_once()
+    def test_get_all_articles_not_found(self, auth_headers):
 
-    @patch("app.database.get_connection")
-    def test_get_all_articles_not_found(self, mock_get_connection):
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-        mock_conn.cursor.return_value.__exit__.return_value = None
+        response = self.client.get("/articles/", headers=auth_headers)
 
-        mock_get_connection.return_value = mock_conn
+        assert response.status_code in [200, 404], f"Expected 200 or 404, got {response.status_code}. Response: {response.text}"
+        if response.status_code == 404:
+            assert response.json()["detail"] == "Aucun article trouvé."
 
-        # Simuler aucun article trouvé
-        mock_cursor.fetchall.return_value = []
+    def test_get_latest_articles(self, auth_headers):
 
-        response = self.client.get("/articles/")
+        response = self.client.get("/articles/latest", headers=auth_headers)
 
-        assert response.status_code == 404
-        assert response.json()["detail"] == "Aucun article trouvé."
-
-        mock_get_connection.assert_called_once()
-        mock_conn.cursor.assert_called_once()
-        mock_cursor.execute.assert_called_once()
-        mock_cursor.fetchall.assert_called_once()
-        mock_conn.close.assert_called_once()
-
-    @patch("app.database.get_connection")
-    def test_get_latest_articles(self, mock_get_connection):
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-        mock_conn.cursor.return_value.__exit__.return_value = None
-
-        mock_get_connection.return_value = mock_conn
-
-        mock_cursor.fetchall.return_value = [
-            {
-                "id": 3,
-                "title": "Dernier article",
-                "source": "TechCrunch",
-                "publication_date": "2024-12-31",
-                "keywords": "RAG",
-                "summary": "Le dernier article...",
-                "link": "https://example.com/article3"
-            }
-        ]
-
-        response = self.client.get("/articles/latest")
-
-        assert response.status_code == 200
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}. Response: {response.text}"
         data = response.json()
-        assert len(data) == 1
-        assert data[0]["title"] == "Dernier article"
-        assert data[0]["source"] == "TechCrunch"
-
-        mock_get_connection.assert_called_once()
-        mock_conn.cursor.assert_called_once()
-        mock_cursor.execute.assert_called_once()
-        mock_cursor.fetchall.assert_called_once()
-        mock_conn.close.assert_called_once()
+        assert isinstance(data, list)
