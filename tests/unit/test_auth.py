@@ -39,14 +39,15 @@ class TestAuth:
         mock_conn.rollback.return_value = None
         mock_conn.close.return_value = None
 
+        # Simule que l'email est déjà utilisé (renvoie un utilisateur existant)
         mock_cursor.fetchone.side_effect = [
-            None,
             {
                 "id": 1,
                 "username": "pytester",
                 "email": "pytest@example.com",
                 "password_hash": "fake_hashed_password"
-            }
+            },  # Simule un email déjà utilisé
+            None  # Simule une insertion réussie après vérification
         ]
 
         # Simule le résultat des opérations qui modifient des lignes
@@ -63,12 +64,23 @@ class TestAuth:
             "password": "StrongPass123!"
         }
 
-        # Test Enregistrement
+        # Test Enregistrement (email déjà pris)
         res_register = client.post("/auth/register", json=user_data)
-        assert res_register.status_code == 200, f"Registration failed with status {res_register.status_code}. Response: {res_register.text}"
+        assert res_register.status_code == 400, f"Registration failed with status {res_register.status_code}. Response: {res_register.text}"
+        assert res_register.json() == {"detail": "Email déjà utilisé."}, f"Unexpected response: {res_register.json()}"
 
+        # Test Enregistrement avec un email unique
+        user_data_unique = {
+            "username": "pytester2",
+            "email": "pytester2@example.com",
+            "password": "StrongPass123!"
+        }
+        res_register_unique = client.post("/auth/register", json=user_data_unique)
+        assert res_register_unique.status_code == 200, f"Registration failed with status {res_register_unique.status_code}. Response: {res_register_unique.text}"
+
+        # Test Connexion
         login_data = {
-            "email": "pytest@example.com",
+            "email": "pytester2@example.com",
             "password": "StrongPass123!"
         }
         res_login = client.post("/auth/login", json=login_data)

@@ -34,7 +34,7 @@ class TestUserPreferences:
         else:
              del self.app.dependency_overrides[jwt_required]
 
-    @patch("app.routes.user_preferences.get_available_filters")
+    @patch("app.routes.user_preferences_route.get_available_filters")
     @patch("app.database.connection_pool")
     def test_get_user_preferences(self, mock_pool, mock_get_filters):
         mock_get_filters.return_value = {
@@ -75,7 +75,7 @@ class TestUserPreferences:
         mock_cursor.fetchone.assert_called_once()
         mock_conn.close.assert_called_once()
 
-    @patch("app.routes.user_preferences.get_available_filters")
+    @patch("app.routes.user_preferences_route.get_available_filters")
     @patch("app.database.connection_pool")
     def test_post_user_preferences(self, mock_pool, mock_get_filters):
         mock_get_filters.return_value = {
@@ -187,7 +187,7 @@ class TestUserPreferences:
         mock_conn.rollback.assert_not_called()
         mock_conn.close.assert_called_once()
 
-    @patch("app.routes.user_preferences.get_available_filters")
+    @patch("app.routes.user_preferences_route.get_available_filters")
     @patch("app.database.connection_pool")
     def test_post_user_preferences_invalid_value(self, mock_pool, mock_get_filters):
         mock_get_filters.return_value = {
@@ -209,7 +209,7 @@ class TestUserPreferences:
         mock_get_filters.assert_called_once()
         mock_pool.get_connection.assert_not_called()
 
-    @patch("app.routes.user_preferences.get_available_filters")
+    @patch("app.routes.user_preferences_route.get_available_filters")
     @patch("app.database.connection_pool")
     def test_delete_user_preferences_invalid_value(self, mock_pool, mock_get_filters):
         mock_get_filters.return_value = {
