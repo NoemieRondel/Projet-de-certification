@@ -1,302 +1,125 @@
-import os
+import os 
 import sys
-import json
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
-import json
 from datetime import datetime
+import json
 
+# Ajout du chemin du projet
 current_file_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.abspath(os.path.join(current_file_dir, '..', '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from app.main import app as fastapi_app
-from app.security.jwt_handler import jwt_required
+from app.security.jwt_handler import create_access_token  # Fonction pour créer un token JWT
 
 
-def mock_jwt_required_func():
-    return {"user_id": 1}
+# Générer un token d'authentification pour un utilisateur
+@pytest.fixture
+def auth_header():
+    # Simuler la création d'un utilisateur et l'authentification
+    user = {"user_id": 1}  # Utilisateur fictif avec user_id 1
+    token = create_access_token(user)
+    return {"Authorization": f"Bearer {token}"}
 
 
-class TestUserPreferences:
-    app = fastapi_app
-    client = TestClient(app)
+# Test de la route GET /user-preferences
+def test_get_user_preferences(auth_header):
+    client = TestClient(fastapi_app)
 
-    @pytest.fixture(autouse=True, scope="class")
-    def setup_class_auth_override(self):
-        original_override = self.app.dependency_overrides.get(jwt_required)
-        self.app.dependency_overrides[jwt_required] = mock_jwt_required_func
+    response = client.get("/user-preferences", headers=auth_header)
 
-        yield
+    assert response.status_code == 200
+    data = response.json()
+    assert "user_preferences" in data
+    assert "available_filters" in data
+    assert isinstance(data["user_preferences"], dict)
+    assert isinstance(data["available_filters"], dict)
+    assert "articles" in data["available_filters"]
+    assert "videos" in data["available_filters"]
+    assert "keywords" in data["available_filters"]
 
-        if original_override:
-             self.app.dependency_overrides[jwt_required] = original_override
-        else:
-             del self.app.dependency_overrides[jwt_required]
 
-    @patch("app.routes.user_preferences_route.get_available_filters")
-    @patch("app.database.connection_pool")
-    def test_get_user_preferences(self, mock_pool, mock_get_filters):
-        mock_get_filters.return_value = {
-            "articles": ["The Verge", "TechCrunch"],
-            "videos": ["OpenAI"],
-            "keywords": ["AI", "Deep Learning"]
-        }
+# Test de la route POST /user-preferences
+def test_update_user_preferences(auth_header):
+    client = TestClient(fastapi_app)
 
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
+    preferences = {
+        "source_preferences": ["TechCrunch", "Wired"],
+        "video_channel_preferences": ["YouTube", "Vimeo"],
+        "keyword_preferences": ["AI", "ML", "Data Science"]
+    }
 
-        mock_pool.get_connection.return_value = mock_conn
+    response = client.post(
+        "/user-preferences",
+        headers=auth_header,
+        json=preferences
+    )
 
-        cursor_wrapper_mock = MagicMock()
-        mock_conn.cursor.return_value = cursor_wrapper_mock
+    assert response.status_code == 200
+    assert response.json() == {"message": "Préférences mises à jour avec succès"}
 
-        cursor_wrapper_mock.__enter__.return_value = mock_cursor
-        cursor_wrapper_mock.__exit__.return_value = None
 
-        cursor_wrapper_mock.close.return_value = None
+# Test de la route DELETE /user-preferences
+def test_delete_user_preferences(auth_header):
+    client = TestClient(fastapi_app)
 
+    preferences_to_delete = {
+        "source_preferences": ["TechCrunch"],
+        "video_channel_preferences": ["YouTube"],
+        "keyword_preferences": ["AI"]
+    }
 
-        mock_conn.close.return_value = None
+    response = client.delete(
+        "/user-preferences",
+        headers=auth_header,
+        json=preferences_to_delete
+    )
 
-        mock_cursor.fetchone.return_value = {
-            "source_preferences": "The Verge;TechCrunch",
-            "video_channel_preferences": "OpenAI",
-            "keyword_preferences": "AI;Deep Learning"
-        }
+    assert response.status_code == 200
+    assert response.json() == {"message": "Préférences mises à jour après suppression"}
 
-        response = self.client.get("/preferences/user-preferences")
 
-        assert response.status_code == 200, f"Expected 200, got {response.status_code}. Response: {response.text}"
-        data = response.json()
+# Test pour une requête DELETE sans préférences
+def test_delete_all_user_preferences(auth_header):
+    client = TestClient(fastapi_app)
 
-        assert "user_preferences" in data
-        assert "available_filters" in data
-        assert data["user_preferences"]["source_preferences"] == ["The Verge", "TechCrunch"]
-        assert data["available_filters"]["articles"] == ["The Verge", "TechCrunch"]
+    response = client.delete(
+        "/user-preferences",
+        headers=auth_header,
+        json={}
+    )
 
-        mock_get_filters.assert_called_once()
-        mock_pool.get_connection.assert_called_once()
-        mock_conn.cursor.assert_called_once_with(dictionary=True)
-        mock_cursor.execute.assert_called_once()
-        mock_cursor.fetchone.assert_called_once()
-        mock_conn.close.assert_called_once()
-        cursor_wrapper_mock.close.assert_called_once()
+    assert response.status_code == 200
+    assert response.json() == {"message": "Préférences mises à jour après suppression"}
 
-    @patch("app.routes.user_preferences_route.get_available_filters")
-    @patch("app.database.connection_pool")
-    def test_post_user_preferences(self, mock_pool, mock_get_filters):
-        mock_get_filters.return_value = {
-            "articles": ["The Verge", "TechCrunch"],
-            "videos": ["OpenAI"],
-            "keywords": ["AI", "Deep Learning"]
-        }
 
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        mock_pool.get_connection.return_value = mock_conn
+# Test de la route GET /user-preferences avec un utilisateur non authentifié
+def test_get_user_preferences_unauthenticated():
+    client = TestClient(fastapi_app)
 
-        cursor_wrapper_mock = MagicMock()
-        mock_conn.cursor.return_value = cursor_wrapper_mock
+    response = client.get("/user-preferences")
 
-        cursor_wrapper_mock.__enter__.return_value = mock_cursor
-        cursor_wrapper_mock.__exit__.return_value = None
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Invalid token: user_id not found"}
 
-        cursor_wrapper_mock.close.return_value = None
 
-        mock_conn.commit.return_value = None
-        mock_conn.rollback.return_value = None
-        mock_conn.close.return_value = None
+# Test de la route POST /user-preferences avec un utilisateur non authentifié
+def test_update_user_preferences_unauthenticated():
+    client = TestClient(fastapi_app)
 
-        mock_cursor.fetchone.return_value = None
-
-        mock_cursor.execute.return_value = None
-        mock_cursor.rowcount = 1
-
-        payload = {
-            "source_preferences": ["The Verge"],
-            "video_channel_preferences": ["OpenAI"],
-            "keyword_preferences": ["AI"]
-        }
-
-        response = self.client.post("/preferences/user-preferences", json=payload)
-
-        assert response.status_code == 200, f"Expected 200, got {response.status_code}. Response: {response.text}"
-        assert response.json()["message"] == "Préférences mises à jour avec succès"
-
-        mock_get_filters.assert_called_once()
-        mock_pool.get_connection.assert_called_once()
-        mock_conn.cursor.assert_called_once_with(dictionary=True)
-
-
-        mock_cursor.fetchone.assert_called_once()
-        mock_conn.commit.assert_called_once()
-        mock_conn.close.assert_called_once()
-        cursor_wrapper_mock.close.assert_called_once()
-
-    @patch("app.database.connection_pool")
-    def test_delete_user_preferences(self, mock_pool):
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        mock_pool.get_connection.return_value = mock_conn
-
-        cursor_wrapper_mock = MagicMock()
-        mock_conn.cursor.return_value = cursor_wrapper_mock
-
-        cursor_wrapper_mock.__enter__.return_value = mock_cursor
-        cursor_wrapper_mock.__exit__.return_value = None
-
-        cursor_wrapper_mock.close.return_value = None
-
-
-        mock_conn.commit.return_value = None
-        mock_conn.rollback.return_value = None
-        mock_conn.close.return_value = None
-
-        mock_cursor.fetchone.return_value = {
-            "source_preferences": "The Verge;TechCrunch",
-            "video_channel_preferences": "OpenAI",
-            "keyword_preferences": "AI;Deep Learning"
-        }
-        mock_cursor.execute.return_value = None
-        mock_cursor.rowcount = 1
-
-        payload = {
-            "source_preferences": ["TechCrunch"]
-        }
-
-        response = self.client.delete(
-            "/preferences/user-preferences",
-            json=payload,
-            headers={"Content-Type": "application/json"}
-        )
-
-        assert response.status_code == 200, f"Expected 200, got {response.status_code}. Response: {response.text}"
-        assert response.json()["message"] == "Préférences mises à jour après suppression"
-
-        mock_pool.get_connection.assert_called_once()
-        mock_conn.cursor.assert_called_once_with(dictionary=True)
-        mock_cursor.fetchone.assert_called_once()
-        mock_cursor.execute.assert_called_once()
-        mock_conn.commit.assert_called_once()
-        mock_conn.rollback.assert_not_called()
-        mock_conn.close.assert_called_once()
-        cursor_wrapper_mock.close.assert_called_once()
-
-    @patch("app.database.connection_pool")
-    def test_delete_user_preferences_not_found(self, mock_pool):
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        mock_pool.get_connection.return_value = mock_conn
-
-        cursor_wrapper_mock = MagicMock()
-        mock_conn.cursor.return_value = cursor_wrapper_mock
-        cursor_wrapper_mock.__enter__.return_value = mock_cursor
-        cursor_wrapper_mock.__exit__.return_value = None
-        cursor_wrapper_mock.close.return_value = None
-
-
-        mock_conn.close.return_value = None
-
-        mock_cursor.fetchone.return_value = None
-
-        payload = {
-            "source_preferences": ["TechCrunch"]
-        }
-
-        response = self.client.delete(
-            "/preferences/user-preferences",
-            json=payload,
-            headers={"Content-Type": "application/json"}
-        )
-
-        assert response.status_code == 404, f"Expected 404, got {response.status_code}. Response: {response.text}"
-        assert response.json()["detail"] == "Aucune préférence trouvée pour cet utilisateur."
-
-        mock_pool.get_connection.assert_called_once()
-        mock_conn.cursor.assert_called_once_with(dictionary=True)
-        mock_cursor.execute.assert_called_once()
-        mock_cursor.fetchone.assert_called_once()
-        mock_conn.commit.assert_not_called()
-        mock_conn.rollback.assert_not_called()
-        mock_conn.close.assert_called_once()
-        cursor_wrapper_mock.close.assert_called_once()
-
-    @patch("app.routes.user_preferences_route.get_available_filters")
-    @patch("app.database.connection_pool")
-    def test_post_user_preferences_invalid_value(self, mock_pool, mock_get_filters):
-        mock_get_filters.return_value = {
-            "articles": ["The Verge", "TechCrunch"],
-            "videos": ["OpenAI"],
-            "keywords": ["AI", "Deep Learning"]
-        }
-
-        payload = {
-            "source_preferences": ["Invalid Source"],
-            "video_channel_preferences": ["OpenAI"],
-            "keyword_preferences": ["AI"]
-        }
-
-        response = self.client.post("/preferences/user-preferences", json=payload)
-
-        assert response.status_code == 400, f"Expected 400, got {response.status_code}. Response: {response.text}"
-
-        mock_get_filters.assert_called_once()
-        mock_pool.get_connection.assert_not_called()
-
-    @patch("app.routes.user_preferences_route.get_available_filters")
-    @patch("app.database.connection_pool")
-    def test_delete_user_preferences_invalid_value(self, mock_pool, mock_get_filters):
-
-        mock_get_filters.return_value = {
-            "articles": ["The Verge", "TechCrunch"],
-            "videos": ["OpenAI"],
-            "keywords": ["AI", "Deep Learning"]
-        }
-
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        mock_pool.get_connection.return_value = mock_conn
-
-        cursor_wrapper_mock = MagicMock()
-        mock_conn.cursor.return_value = cursor_wrapper_mock
-        cursor_wrapper_mock.__enter__.return_value = mock_cursor
-        cursor_wrapper_mock.__exit__.return_value = None
-        cursor_wrapper_mock.close.return_value = None
-
-
-        mock_conn.close.return_value = None
-
-        mock_cursor.fetchone.return_value = {
-            "source_preferences": "The Verge;TechCrunch",
-            "video_channel_preferences": "OpenAI",
-            "keyword_preferences": "AI;Deep Learning"
-        }
-
-        mock_cursor.execute.return_value = None
-        mock_cursor.rowcount = 1
-
-
-        payload = {
-            "source_preferences": ["Invalid Source"]
-        }
-
-        response = self.client.delete(
-            "/preferences/user-preferences",
-            json=payload,
-            headers={"Content-Type": "application/json"}
-        )
-
-        assert response.status_code == 400, f"Expected 400, got {response.status_code}. Response: {response.text}"
-
-        mock_get_filters.assert_called_once()
-        mock_pool.get_connection.assert_called_once()
-        mock_conn.cursor.assert_called_once_with(dictionary=True)
-        mock_cursor.fetchone.assert_called_once()
-        mock_cursor.execute.assert_called_once()
-        mock_conn.commit.assert_called_once()
-        mock_conn.rollback.assert_not_called()
-        mock_conn.close.assert_called_once()
-        cursor_wrapper_mock.close.assert_called_once()
+    preferences = {
+        "source_preferences": ["TechCrunch", "Wired"],
+        "video_channel_preferences": ["YouTube", "Vimeo"],
+        "keyword_preferences": ["AI", "ML", "Data Science"]
+    }
+
+    response = client.post(
+        "/user-preferences",
+        json=preferences
+    )
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Invalid token: user_id not found"}

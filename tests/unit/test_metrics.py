@@ -1,191 +1,170 @@
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 import sys
 import os
-from datetime import datetime
 
+# Ajout du chemin du projet à sys.path pour que l'importation fonctionne correctement
 current_file_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.abspath(os.path.join(current_file_dir, '..', '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from app.security.jwt_handler import jwt_required
-from app.main import app as fastapi_app
+from app.main import app  # Import de l'application FastAPI depuis app.main
 
 
-def mock_jwt_required_func():
-    return {"user_id": 1}
+@pytest.fixture(scope="module")
+def client():
+    return TestClient(app)
 
 
-class TestMetrics:
-    app = fastapi_app
-    client = TestClient(app)
+# Fonction pour obtenir un token JWT fictif (simulé pour les tests)
+def get_fake_jwt_token():
+    return "fake-jwt-token"
 
-    @pytest.fixture(autouse=True, scope="class")
-    def setup_class_auth_override(self):
-        original_override = self.app.dependency_overrides.get(jwt_required)
-        self.app.dependency_overrides[jwt_required] = mock_jwt_required_func
 
-        yield
+# Test pour /articles-by-source
+def test_get_articles_by_source(client):
+    mock_data = [
+        {"source": "TechCrunch", "count": 100},
+        {"source": "VentureBeat", "count": 80},
+    ]
 
-        if original_override:
-             self.app.dependency_overrides[jwt_required] = original_override
-        else:
-             del self.app.dependency_overrides[jwt_required]
+    headers = {"Authorization": f"Bearer {get_fake_jwt_token()}"}
 
-    @patch("app.database.connection_pool")
-    def test_get_articles_by_source(self, mock_pool):
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
+    with patch("app.routes.metrics.execute_query", return_value=mock_data):
+        response = client.get("/articles-by-source", headers=headers)
 
-        mock_pool.get_connection.return_value = mock_conn
+    assert response.status_code == 200
+    response_data = response.json()
+    assert len(response_data) == 2
+    assert response_data[0]["source"] == "TechCrunch"
+    assert response_data[0]["count"] == 100
+    assert response_data[1]["source"] == "VentureBeat"
+    assert response_data[1]["count"] == 80
 
-        cursor_wrapper_mock = MagicMock()
-        mock_conn.cursor.return_value = cursor_wrapper_mock
 
-        cursor_wrapper_mock.__enter__.return_value = mock_cursor
-        cursor_wrapper_mock.__exit__.return_value = None
-        cursor_wrapper_mock.close.return_value = None
+# Test pour /keyword-frequency
+def test_get_keyword_frequency(client):
+    mock_data = [
+        {"keyword": "AI", "count": 150},
+        {"keyword": "Machine Learning", "count": 120},
+    ]
 
-        mock_data = [{"source": "TechCrunch", "count": 42}]
-        mock_cursor.fetchall.return_value = mock_data
+    headers = {"Authorization": f"Bearer {get_fake_jwt_token()}"}
 
-        response = self.client.get("/metrics/articles-by-source")
+    with patch("app.routes.metrics.execute_query", return_value=mock_data):
+        response = client.get("/keyword-frequency", headers=headers)
 
-        assert response.status_code == 200, f"Expected 200, got {response.status_code}. Response: {response.text}"
-        assert response.json() == mock_data, f"Expected {mock_data}, got {response.json()}. Response: {response.text}"
+    assert response.status_code == 200
+    response_data = response.json()
+    assert len(response_data) == 2
+    assert response_data[0]["keyword"] == "AI"
+    assert response_data[0]["count"] == 150
+    assert response_data[1]["keyword"] == "Machine Learning"
+    assert response_data[1]["count"] == 120
 
-        mock_pool.get_connection.assert_called_once()
-        mock_conn.cursor.assert_called_once_with(dictionary=True)
-        mock_cursor.execute.assert_called_once()
-        mock_cursor.fetchall.assert_called_once()
-        mock_conn.close.assert_called_once()
 
-    @patch("app.database.connection_pool")
-    def test_get_videos_by_source(self, mock_pool):
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        mock_pool.get_connection.return_value = mock_conn
+# Test pour /scientific-keyword-frequency
+def test_get_scientific_keyword_frequency(client):
+    mock_data = [
+        {"keyword": "Deep Learning", "count": 50},
+        {"keyword": "Neural Networks", "count": 40},
+    ]
 
-        cursor_wrapper_mock = MagicMock()
-        mock_conn.cursor.return_value = cursor_wrapper_mock
+    headers = {"Authorization": f"Bearer {get_fake_jwt_token()}"}
 
-        cursor_wrapper_mock.__enter__.return_value = mock_cursor
-        cursor_wrapper_mock.cursor.return_value.__exit__.return_value = None
-        cursor_wrapper_mock.close.return_value = None
+    with patch("app.routes.metrics.execute_query", return_value=mock_data):
+        response = client.get("/scientific-keyword-frequency", headers=headers)
 
-        mock_data = [{"source": "YouTube", "count": 18}]
-        mock_cursor.fetchall.return_value = mock_data
+    assert response.status_code == 200
+    response_data = response.json()
+    assert len(response_data) == 2
+    assert response_data[0]["keyword"] == "Deep Learning"
+    assert response_data[0]["count"] == 50
+    assert response_data[1]["keyword"] == "Neural Networks"
+    assert response_data[1]["count"] == 40
 
-        response = self.client.get("/metrics/videos-by-source")
 
-        assert response.status_code == 200, f"Expected 200, got {response.status_code}. Response: {response.text}"
-        assert response.json() == mock_data, f"Expected {mock_data}, got {response.json()}. Response: {response.text}"
+# Test pour /videos-by-source
+def test_get_videos_by_source(client):
+    mock_data = [
+        {"source": "YouTube", "count": 200},
+        {"source": "Vimeo", "count": 150},
+    ]
 
-        mock_pool.get_connection.assert_called_once()
-        mock_conn.cursor.assert_called_once_with(dictionary=True)
-        mock_cursor.execute.assert_called_once()
-        mock_cursor.fetchall.assert_called_once()
-        cursor_wrapper_mock.close.assert_called_once()
+    headers = {"Authorization": f"Bearer {get_fake_jwt_token()}"}
 
-    @patch("app.database.connection_pool")
-    def test_get_keyword_frequency(self, mock_pool):
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        mock_pool.get_connection.return_value = mock_conn
+    with patch("app.routes.metrics.execute_query", return_value=mock_data):
+        response = client.get("/videos-by-source", headers=headers)
 
-        cursor_wrapper_mock = MagicMock()
-        mock_conn.cursor.return_value = cursor_wrapper_mock
+    assert response.status_code == 200
+    response_data = response.json()
+    assert len(response_data) == 2
+    assert response_data[0]["source"] == "YouTube"
+    assert response_data[0]["count"] == 200
+    assert response_data[1]["source"] == "Vimeo"
+    assert response_data[1]["count"] == 150
 
-        cursor_wrapper_mock.__enter__.return_value = mock_cursor
-        cursor_wrapper_mock.__exit__.return_value = None
-        cursor_wrapper_mock.close.return_value = None
 
-        mock_data = [{"keyword": "AI", "count": 10}]
-        mock_cursor.fetchall.return_value = mock_data
-
-        response = self.client.get("/metrics/keyword-frequency")
-
-        assert response.status_code == 200, f"Expected 200, got {response.status_code}. Response: {response.text}"
-        assert response.json() == mock_data, f"Expected {mock_data}, got {response.json()}. Response: {response.text}"
-
-        mock_pool.get_connection.assert_called_once()
-        mock_conn.cursor.assert_called_once_with(dictionary=True)
-        mock_cursor.execute.assert_called_once()
-        mock_cursor.fetchall.assert_called_once()
-        cursor_wrapper_mock.close.assert_called_once()
-
-    @patch("app.database.connection_pool")
-    def test_get_scientific_keyword_frequency(self, mock_pool):
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        mock_pool.get_connection.return_value = mock_conn
-
-        cursor_wrapper_mock = MagicMock()
-        mock_conn.cursor.return_value = cursor_wrapper_mock
-
-        cursor_wrapper_mock.__enter__.return_value = mock_cursor
-        cursor_wrapper_mock.__exit__.return_value = None
-        cursor_wrapper_mock.close.return_value = None
-
-        mock_data = [{"keyword": "deep learning", "count": 7}]
-        mock_cursor.fetchall.return_value = mock_data
-
-        response = self.client.get("/metrics/scientific-keyword-frequency")
-
-        assert response.status_code == 200, f"Expected 200, got {response.status_code}. Response: {response.text}"
-        assert response.json() == mock_data, f"Expected {mock_data}, got {response.json()}. Response: {response.text}"
-
-        mock_pool.get_connection.assert_called_once()
-        mock_conn.cursor.assert_called_once_with(dictionary=True)
-        mock_cursor.execute.assert_called_once()
-        mock_cursor.fetchall.assert_called_once()
-        cursor_wrapper_mock.close.assert_called_once()
-
-    @patch("app.database.connection_pool")
-    def test_get_monitoring_logs(self, mock_pool):
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        mock_pool.get_connection.return_value = mock_conn
-
-        cursor_wrapper_mock = MagicMock()
-        mock_conn.cursor.return_value = cursor_wrapper_mock
-
-        cursor_wrapper_mock.__enter__.return_value = mock_cursor
-        cursor_wrapper_mock.cursor.return_value.__exit__.return_value = None
-        cursor_wrapper_mock.close.return_value = None
-
-        now = datetime.utcnow()
-        now_str = now.isoformat()
-
-        mock_data = [{
-            "timestamp": now,
-            "script": "collect_articles.py",
-            "duration_seconds": 4.5,
+# Test pour /monitoring-logs
+def test_get_monitoring_logs(client):
+    mock_data = [
+        {
+            "timestamp": "2025-04-24T10:00:00",
+            "script": "article_scraper",
+            "duration_seconds": 120.5,
             "articles_count": 100,
-            "empty_full_content_count": 2,
-            "average_keywords_per_article": 5.3,
-            "scientific_articles_count": 30,
+            "empty_full_content_count": 5,
+            "average_keywords_per_article": 3.5,
+            "scientific_articles_count": 20,
+            "empty_abstracts_count": 2,
+            "average_keywords_per_scientific_article": 4.0,
+            "summaries_generated": 15,
+            "average_summary_word_count": 200.0
+        },
+        {
+            "timestamp": "2025-04-24T11:00:00",
+            "script": "video_scraper",
+            "duration_seconds": 60.2,
+            "articles_count": 50,
+            "empty_full_content_count": 3,
+            "average_keywords_per_article": 2.8,
+            "scientific_articles_count": 10,
             "empty_abstracts_count": 1,
-            "average_keywords_per_scientific_article": 4.1,
-            "summaries_generated": 25,
-            "average_summary_word_count": 80.0
-        }]
+            "average_keywords_per_scientific_article": 3.2,
+            "summaries_generated": 8,
+            "average_summary_word_count": 180.0
+        },
+    ]
 
-        mock_cursor.fetchall.return_value = mock_data
+    headers = {"Authorization": f"Bearer {get_fake_jwt_token()}"}
 
-        response = self.client.get("/metrics/monitoring-logs")
+    with patch("app.routes.metrics.execute_query", return_value=mock_data):
+        response = client.get("/monitoring-logs", headers=headers)
 
-        assert response.status_code == 200, f"Expected 200, got {response.status_code}. Response: {response.text}"
-        data = response.json()
-        assert isinstance(data, list)
-        assert len(data) > 0
-
-        assert data[0]["timestamp"] == now_str
-
-        mock_pool.get_connection.assert_called_once()
-        mock_conn.cursor.assert_called_once_with(dictionary=True)
-        mock_cursor.execute.assert_called_once()
-        mock_cursor.fetchall.assert_called_once()
-        cursor_wrapper_mock.close.assert_called_once()
+    assert response.status_code == 200
+    response_data = response.json()
+    assert len(response_data) == 2
+    assert response_data[0]["timestamp"] == "2025-04-24T10:00:00"
+    assert response_data[0]["script"] == "article_scraper"
+    assert response_data[0]["duration_seconds"] == 120.5
+    assert response_data[0]["articles_count"] == 100
+    assert response_data[0]["empty_full_content_count"] == 5
+    assert response_data[0]["average_keywords_per_article"] == 3.5
+    assert response_data[0]["scientific_articles_count"] == 20
+    assert response_data[0]["empty_abstracts_count"] == 2
+    assert response_data[0]["average_keywords_per_scientific_article"] == 4.0
+    assert response_data[0]["summaries_generated"] == 15
+    assert response_data[0]["average_summary_word_count"] == 200.0
+    assert response_data[1]["timestamp"] == "2025-04-24T11:00:00"
+    assert response_data[1]["script"] == "video_scraper"
+    assert response_data[1]["duration_seconds"] == 60.2
+    assert response_data[1]["articles_count"] == 50
+    assert response_data[1]["empty_full_content_count"] == 3
+    assert response_data[1]["average_keywords_per_article"] == 2.8
+    assert response_data[1]["scientific_articles_count"] == 10
+    assert response_data[1]["empty_abstracts_count"] == 1
+    assert response_data[1]["average_keywords_per_scientific_article"] == 3.2
+    assert response_data[1]["summaries_generated"] == 8
+    assert response_data[1]["average_summary_word_count"] == 180.0
