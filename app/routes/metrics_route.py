@@ -10,6 +10,7 @@ router = APIRouter()
 
 # Modèles de réponse
 
+
 class SourceMetrics(BaseModel):
     source: str
     count: int
@@ -137,5 +138,4 @@ async def execute_query(query: str, params: tuple = ()) -> List[Dict[str, Any]]:
         raise HTTPException(status_code=500, detail=f"Erreur interne : {str(e)}")
 
     finally:
-        connection.commit()
-        connection.close()
+        pass
