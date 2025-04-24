@@ -62,6 +62,9 @@ async def register_user(user: UserCreate):
             token = create_access_token({"user_id": user_id})
             return {"access_token": token, "token_type": "bearer"}
 
+        except HTTPException:
+            raise
+
         except Exception as e:
             connection.rollback()
             raise HTTPException(status_code=500, detail=f"Erreur interne : {str(e)}")
@@ -95,6 +98,9 @@ async def login_user(user: UserLogin):
             # Générer un token JWT
             token = create_access_token({"user_id": db_user["id"]})
             return {"access_token": token, "token_type": "bearer"}
+
+        except HTTPException:
+            raise
 
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Erreur interne : {str(e)}")
