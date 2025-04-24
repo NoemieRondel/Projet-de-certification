@@ -48,43 +48,43 @@ class MonitoringLog(BaseModel):
 
 # Nombre d'articles par source
 @router.get("/articles-by-source", response_model=List[SourceMetrics])
-async def get_articles_by_source(user=Depends(jwt_required)):
+def get_articles_by_source(user=Depends(jwt_required)):
     query = """
         SELECT source, COUNT(*) as count
         FROM articles
         GROUP BY source
         ORDER BY count DESC
     """
-    return await execute_query(query)
+    return execute_query(query)
 
 
 # Fréquence des mots-clés dans les articles
 @router.get("/keyword-frequency", response_model=List[KeywordFrequencyMetrics])
-async def get_keyword_frequency(user=Depends(jwt_required)):
-    return await get_keyword_frequency_generic("articles")
+def get_keyword_frequency(user=Depends(jwt_required)):
+    return get_keyword_frequency_generic("articles")
 
 
 # Fréquence des mots-clés dans les articles scientifiques
 @router.get("/scientific-keyword-frequency", response_model=List[KeywordFrequencyMetrics])
-async def get_scientific_keyword_frequency(user=Depends(jwt_required)):
-    return await get_keyword_frequency_generic("scientific_articles")
+def get_scientific_keyword_frequency(user=Depends(jwt_required)):
+    return get_keyword_frequency_generic("scientific_articles")
 
 
 # Nombre de vidéos par source
 @router.get("/videos-by-source", response_model=List[SourceMetrics])
-async def get_videos_by_source(user=Depends(jwt_required)):
+def get_videos_by_source(user=Depends(jwt_required)):
     query = """
         SELECT source, COUNT(*) as count
         FROM videos
         GROUP BY source
         ORDER BY count DESC
     """
-    return await execute_query(query)
+    return execute_query(query)
 
 
 # Monitoring
 @router.get("/monitoring-logs", response_model=List[MonitoringLog])
-async def get_monitoring_logs(user=Depends(jwt_required)):
+def get_monitoring_logs(user=Depends(jwt_required)):
     query = """
         SELECT timestamp, script, duration_seconds, articles_count,
                empty_full_content_count, average_keywords_per_article,
@@ -95,7 +95,7 @@ async def get_monitoring_logs(user=Depends(jwt_required)):
         ORDER BY timestamp DESC
         LIMIT 100
     """
-    rows = await execute_query(query)
+    rows = execute_query(query)
 
     # Correction : conversion de timestamp en string
     for row in rows:
@@ -106,7 +106,7 @@ async def get_monitoring_logs(user=Depends(jwt_required)):
 
 
 # Fonction générique pour la fréquence des mots-clés
-async def get_keyword_frequency_generic(table_name: str) -> List[Dict[str, Any]]:
+def get_keyword_frequency_generic(table_name: str) -> List[Dict[str, Any]]:
     query = f"""
         SELECT keyword, COUNT(*) as count
         FROM (
@@ -119,11 +119,11 @@ async def get_keyword_frequency_generic(table_name: str) -> List[Dict[str, Any]]
         GROUP BY keyword
         ORDER BY count DESC
     """
-    return await execute_query(query)
+    return execute_query(query)
 
 
 # Fonction générique pour exécuter une requête SQL
-async def execute_query(query: str, params: tuple = ()) -> List[Dict[str, Any]]:
+def execute_query(query: str, params: tuple = ()) -> List[Dict[str, Any]]:
     connection = get_connection()
     if not connection:
         raise HTTPException(status_code=500, detail="Impossible de se connecter à la base de données.")
