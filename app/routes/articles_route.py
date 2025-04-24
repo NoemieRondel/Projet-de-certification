@@ -99,6 +99,8 @@ async def get_all_articles(
 
             return articles
 
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"Erreur lors de l'exécution de la requête : {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur interne : {str(e)}")
@@ -124,7 +126,7 @@ async def get_latest_articles(user=Depends(jwt_required)):
     # Requête pour obtenir le dernier article par source
     query = """
         WITH ranked_articles AS (
-            SELECT 
+            SELECT
                 id, title, source, publication_date, keywords, summary, link,
                 RANK() OVER (PARTITION BY source ORDER BY publication_date DESC) AS rank
             FROM articles
@@ -156,6 +158,8 @@ async def get_latest_articles(user=Depends(jwt_required)):
 
             return articles
 
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"Erreur lors de l'exécution de la requête : {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur interne : {str(e)}")
