@@ -47,7 +47,9 @@ class TestAuth:
                 "email": "pytest@example.com",
                 "password_hash": "fake_hashed_password"
             },  # Simule un email déjà utilisé
-            None  # Simule une insertion réussie après vérification
+            None,
+            None,
+            None
         ]
 
         # Simule le résultat des opérations qui modifient des lignes

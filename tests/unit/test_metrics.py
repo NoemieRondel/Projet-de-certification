@@ -41,9 +41,12 @@ class TestMetrics:
 
         mock_pool.get_connection.return_value = mock_conn
 
-        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-        mock_conn.cursor.return_value.__exit__.return_value = None
-        mock_conn.close.return_value = None
+        cursor_wrapper_mock = MagicMock()
+        mock_conn.cursor.return_value = cursor_wrapper_mock
+
+        cursor_wrapper_mock.__enter__.return_value = mock_cursor
+        cursor_wrapper_mock.__exit__.return_value = None
+        cursor_wrapper_mock.close.return_value = None
 
         mock_data = [{"source": "TechCrunch", "count": 42}]
         mock_cursor.fetchall.return_value = mock_data
@@ -54,7 +57,7 @@ class TestMetrics:
         assert response.json() == mock_data, f"Expected {mock_data}, got {response.json()}. Response: {response.text}"
 
         mock_pool.get_connection.assert_called_once()
-        mock_conn.cursor.assert_called_once()
+        mock_conn.cursor.assert_called_once_with(dictionary=True)
         mock_cursor.execute.assert_called_once()
         mock_cursor.fetchall.assert_called_once()
         mock_conn.close.assert_called_once()
@@ -64,9 +67,13 @@ class TestMetrics:
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_pool.get_connection.return_value = mock_conn
-        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-        mock_conn.cursor.return_value.__exit__.return_value = None
-        mock_conn.close.return_value = None
+
+        cursor_wrapper_mock = MagicMock()
+        mock_conn.cursor.return_value = cursor_wrapper_mock
+
+        cursor_wrapper_mock.__enter__.return_value = mock_cursor
+        cursor_wrapper_mock.cursor.return_value.__exit__.return_value = None
+        cursor_wrapper_mock.close.return_value = None
 
         mock_data = [{"source": "YouTube", "count": 18}]
         mock_cursor.fetchall.return_value = mock_data
@@ -77,19 +84,23 @@ class TestMetrics:
         assert response.json() == mock_data, f"Expected {mock_data}, got {response.json()}. Response: {response.text}"
 
         mock_pool.get_connection.assert_called_once()
-        mock_conn.cursor.assert_called_once()
+        mock_conn.cursor.assert_called_once_with(dictionary=True)
         mock_cursor.execute.assert_called_once()
         mock_cursor.fetchall.assert_called_once()
-        mock_conn.close.assert_called_once()
+        cursor_wrapper_mock.close.assert_called_once()
 
     @patch("app.database.connection_pool")
     def test_get_keyword_frequency(self, mock_pool):
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_pool.get_connection.return_value = mock_conn
-        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-        mock_conn.cursor.return_value.__exit__.return_value = None
-        mock_conn.close.return_value = None
+
+        cursor_wrapper_mock = MagicMock()
+        mock_conn.cursor.return_value = cursor_wrapper_mock
+
+        cursor_wrapper_mock.__enter__.return_value = mock_cursor
+        cursor_wrapper_mock.__exit__.return_value = None
+        cursor_wrapper_mock.close.return_value = None
 
         mock_data = [{"keyword": "AI", "count": 10}]
         mock_cursor.fetchall.return_value = mock_data
@@ -100,19 +111,23 @@ class TestMetrics:
         assert response.json() == mock_data, f"Expected {mock_data}, got {response.json()}. Response: {response.text}"
 
         mock_pool.get_connection.assert_called_once()
-        mock_conn.cursor.assert_called_once()
+        mock_conn.cursor.assert_called_once_with(dictionary=True)
         mock_cursor.execute.assert_called_once()
         mock_cursor.fetchall.assert_called_once()
-        mock_conn.close.assert_called_once()
+        cursor_wrapper_mock.close.assert_called_once()
 
     @patch("app.database.connection_pool")
     def test_get_scientific_keyword_frequency(self, mock_pool):
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_pool.get_connection.return_value = mock_conn
-        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-        mock_conn.cursor.return_value.__exit__.return_value = None
-        mock_conn.close.return_value = None
+
+        cursor_wrapper_mock = MagicMock()
+        mock_conn.cursor.return_value = cursor_wrapper_mock
+
+        cursor_wrapper_mock.__enter__.return_value = mock_cursor
+        cursor_wrapper_mock.__exit__.return_value = None
+        cursor_wrapper_mock.close.return_value = None
 
         mock_data = [{"keyword": "deep learning", "count": 7}]
         mock_cursor.fetchall.return_value = mock_data
@@ -123,19 +138,23 @@ class TestMetrics:
         assert response.json() == mock_data, f"Expected {mock_data}, got {response.json()}. Response: {response.text}"
 
         mock_pool.get_connection.assert_called_once()
-        mock_conn.cursor.assert_called_once()
+        mock_conn.cursor.assert_called_once_with(dictionary=True)
         mock_cursor.execute.assert_called_once()
         mock_cursor.fetchall.assert_called_once()
-        mock_conn.close.assert_called_once()
+        cursor_wrapper_mock.close.assert_called_once()
 
     @patch("app.database.connection_pool")
     def test_get_monitoring_logs(self, mock_pool):
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_pool.get_connection.return_value = mock_conn
-        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-        mock_conn.cursor.return_value.__exit__.return_value = None
-        mock_conn.close.return_value = None
+
+        cursor_wrapper_mock = MagicMock()
+        mock_conn.cursor.return_value = cursor_wrapper_mock
+
+        cursor_wrapper_mock.__enter__.return_value = mock_cursor
+        cursor_wrapper_mock.cursor.return_value.__exit__.return_value = None
+        cursor_wrapper_mock.close.return_value = None
 
         now = datetime.utcnow()
         now_str = now.isoformat()
@@ -166,7 +185,7 @@ class TestMetrics:
         assert data[0]["timestamp"] == now_str
 
         mock_pool.get_connection.assert_called_once()
-        mock_conn.cursor.assert_called_once()
+        mock_conn.cursor.assert_called_once_with(dictionary=True)
         mock_cursor.execute.assert_called_once()
         mock_cursor.fetchall.assert_called_once()
-        mock_conn.close.assert_called_once()
+        cursor_wrapper_mock.close.assert_called_once()

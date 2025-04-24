@@ -4,6 +4,8 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
+import json
+from datetime import datetime
 
 current_file_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.abspath(os.path.join(current_file_dir, '..', '..'))
@@ -19,7 +21,7 @@ def mock_jwt_required_func():
 
 
 class TestUserPreferences:
-    app = fastapi_app 
+    app = fastapi_app
     client = TestClient(app)
 
     @pytest.fixture(autouse=True, scope="class")
@@ -48,8 +50,15 @@ class TestUserPreferences:
 
         mock_pool.get_connection.return_value = mock_conn
 
-        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-        mock_conn.cursor.return_value.__exit__.return_value = None
+        cursor_wrapper_mock = MagicMock()
+        mock_conn.cursor.return_value = cursor_wrapper_mock
+
+        cursor_wrapper_mock.__enter__.return_value = mock_cursor
+        cursor_wrapper_mock.__exit__.return_value = None
+
+        cursor_wrapper_mock.close.return_value = None
+
+
         mock_conn.close.return_value = None
 
         mock_cursor.fetchone.return_value = {
@@ -70,10 +79,11 @@ class TestUserPreferences:
 
         mock_get_filters.assert_called_once()
         mock_pool.get_connection.assert_called_once()
-        mock_conn.cursor.assert_called_once()
+        mock_conn.cursor.assert_called_once_with(dictionary=True)
         mock_cursor.execute.assert_called_once()
         mock_cursor.fetchone.assert_called_once()
         mock_conn.close.assert_called_once()
+        cursor_wrapper_mock.close.assert_called_once()
 
     @patch("app.routes.user_preferences_route.get_available_filters")
     @patch("app.database.connection_pool")
@@ -87,8 +97,15 @@ class TestUserPreferences:
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_pool.get_connection.return_value = mock_conn
-        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-        mock_conn.cursor.return_value.__exit__.return_value = None
+
+        cursor_wrapper_mock = MagicMock()
+        mock_conn.cursor.return_value = cursor_wrapper_mock
+
+        cursor_wrapper_mock.__enter__.return_value = mock_cursor
+        cursor_wrapper_mock.__exit__.return_value = None
+
+        cursor_wrapper_mock.close.return_value = None
+
         mock_conn.commit.return_value = None
         mock_conn.rollback.return_value = None
         mock_conn.close.return_value = None
@@ -111,19 +128,29 @@ class TestUserPreferences:
 
         mock_get_filters.assert_called_once()
         mock_pool.get_connection.assert_called_once()
-        mock_conn.cursor.assert_called_once()
+        mock_conn.cursor.assert_called_once_with(dictionary=True)
+
 
         mock_cursor.fetchone.assert_called_once()
         mock_conn.commit.assert_called_once()
         mock_conn.close.assert_called_once()
+        cursor_wrapper_mock.close.assert_called_once()
 
     @patch("app.database.connection_pool")
     def test_delete_user_preferences(self, mock_pool):
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_pool.get_connection.return_value = mock_conn
-        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-        mock_conn.cursor.return_value.__exit__.return_value = None
+
+        cursor_wrapper_mock = MagicMock()
+        mock_conn.cursor.return_value = cursor_wrapper_mock
+
+        cursor_wrapper_mock.__enter__.return_value = mock_cursor
+        cursor_wrapper_mock.__exit__.return_value = None
+
+        cursor_wrapper_mock.close.return_value = None
+
+
         mock_conn.commit.return_value = None
         mock_conn.rollback.return_value = None
         mock_conn.close.return_value = None
@@ -142,7 +169,7 @@ class TestUserPreferences:
 
         response = self.client.delete(
             "/preferences/user-preferences",
-            content=json.dumps(payload),
+            json=payload,
             headers={"Content-Type": "application/json"}
         )
 
@@ -150,18 +177,27 @@ class TestUserPreferences:
         assert response.json()["message"] == "Préférences mises à jour après suppression"
 
         mock_pool.get_connection.assert_called_once()
-        mock_conn.cursor.assert_called_once()
+        mock_conn.cursor.assert_called_once_with(dictionary=True)
         mock_cursor.fetchone.assert_called_once()
+        mock_cursor.execute.assert_called_once()
         mock_conn.commit.assert_called_once()
+        mock_conn.rollback.assert_not_called()
         mock_conn.close.assert_called_once()
+        cursor_wrapper_mock.close.assert_called_once()
 
     @patch("app.database.connection_pool")
     def test_delete_user_preferences_not_found(self, mock_pool):
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_pool.get_connection.return_value = mock_conn
-        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-        mock_conn.cursor.return_value.__exit__.return_value = None
+
+        cursor_wrapper_mock = MagicMock()
+        mock_conn.cursor.return_value = cursor_wrapper_mock
+        cursor_wrapper_mock.__enter__.return_value = mock_cursor
+        cursor_wrapper_mock.__exit__.return_value = None
+        cursor_wrapper_mock.close.return_value = None
+
+
         mock_conn.close.return_value = None
 
         mock_cursor.fetchone.return_value = None
@@ -172,7 +208,7 @@ class TestUserPreferences:
 
         response = self.client.delete(
             "/preferences/user-preferences",
-            content=json.dumps(payload),
+            json=payload,
             headers={"Content-Type": "application/json"}
         )
 
@@ -180,12 +216,13 @@ class TestUserPreferences:
         assert response.json()["detail"] == "Aucune préférence trouvée pour cet utilisateur."
 
         mock_pool.get_connection.assert_called_once()
-        mock_conn.cursor.assert_called_once()
+        mock_conn.cursor.assert_called_once_with(dictionary=True)
         mock_cursor.execute.assert_called_once()
         mock_cursor.fetchone.assert_called_once()
         mock_conn.commit.assert_not_called()
         mock_conn.rollback.assert_not_called()
         mock_conn.close.assert_called_once()
+        cursor_wrapper_mock.close.assert_called_once()
 
     @patch("app.routes.user_preferences_route.get_available_filters")
     @patch("app.database.connection_pool")
@@ -212,11 +249,35 @@ class TestUserPreferences:
     @patch("app.routes.user_preferences_route.get_available_filters")
     @patch("app.database.connection_pool")
     def test_delete_user_preferences_invalid_value(self, mock_pool, mock_get_filters):
+
         mock_get_filters.return_value = {
             "articles": ["The Verge", "TechCrunch"],
             "videos": ["OpenAI"],
             "keywords": ["AI", "Deep Learning"]
         }
+
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_pool.get_connection.return_value = mock_conn
+
+        cursor_wrapper_mock = MagicMock()
+        mock_conn.cursor.return_value = cursor_wrapper_mock
+        cursor_wrapper_mock.__enter__.return_value = mock_cursor
+        cursor_wrapper_mock.__exit__.return_value = None
+        cursor_wrapper_mock.close.return_value = None
+
+
+        mock_conn.close.return_value = None
+
+        mock_cursor.fetchone.return_value = {
+            "source_preferences": "The Verge;TechCrunch",
+            "video_channel_preferences": "OpenAI",
+            "keyword_preferences": "AI;Deep Learning"
+        }
+
+        mock_cursor.execute.return_value = None
+        mock_cursor.rowcount = 1
+
 
         payload = {
             "source_preferences": ["Invalid Source"]
@@ -224,11 +285,18 @@ class TestUserPreferences:
 
         response = self.client.delete(
             "/preferences/user-preferences",
-            content=json.dumps(payload),
+            json=payload,
             headers={"Content-Type": "application/json"}
         )
 
         assert response.status_code == 400, f"Expected 400, got {response.status_code}. Response: {response.text}"
 
         mock_get_filters.assert_called_once()
-        mock_pool.get_connection.assert_not_called()
+        mock_pool.get_connection.assert_called_once()
+        mock_conn.cursor.assert_called_once_with(dictionary=True)
+        mock_cursor.fetchone.assert_called_once()
+        mock_cursor.execute.assert_called_once()
+        mock_conn.commit.assert_called_once()
+        mock_conn.rollback.assert_not_called()
+        mock_conn.close.assert_called_once()
+        cursor_wrapper_mock.close.assert_called_once()
