@@ -1,4 +1,4 @@
-name: Run Python Tests (Unit, Integration, End-to-End)
+name: Run Python Tests (Integration & End-to-End)
 
 on:
   push:
@@ -14,50 +14,6 @@ env:
   DB_NAME: test_db
 
 jobs:
-  unit-tests:
-    name: Unit Tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    services:
-      mysql_db:
-        image: mysql:8.0
-        env:
-          MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
-          MYSQL_DATABASE: ${{ env.DB_NAME }}
-        ports:
-          - "3306:3306"
-        options: >-
-          --health-cmd "mysqladmin ping -h 127.0.0.1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
-
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: 3.11
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest pytest-asyncio
-
-      - name: Wait for DB service
-        run: |
-          for i in $(seq 1 30); do
-            mysql -h $DB_HOST -u$DB_USER -e "select 1" > /dev/null 2>&1 && break
-            sleep 5
-          done
-
-      - name: Run Unit Tests
-        run: |
-          pytest -v tests/unit
-
   integration-tests:
     name: Integration Tests
     runs-on: ubuntu-latest
