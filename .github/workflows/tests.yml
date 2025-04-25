@@ -23,7 +23,8 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest pytest-asyncio
+          pip install pytest
+          pip install pytest-asyncio
 
       - name: Run Unit Tests
         run: |
@@ -33,6 +34,20 @@ jobs:
     name: Integration Tests
     runs-on: ubuntu-latest
 
+    services:
+      mysql_db:
+        image: mysql:8.0
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+          MYSQL_DATABASE: test_db
+        ports:
+          - "3306:3306"
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v3
 
@@ -47,14 +62,52 @@ jobs:
           pip install -r requirements.txt
           pip install pytest
 
+      - name: Wait for DB service
+        run: |
+          for i in $(seq 1 30); do
+            mysql -h 127.0.0.1 -uroot -e "select 1" > /dev/null 2>&1 && break
+            sleep 5
+          done
+
+      - name: Run Database Migrations
+        run: |
+          mysql -h 127.0.0.1 -uroot -e "CREATE DATABASE IF NOT EXISTS test_db;" 
+          mysql -h 127.0.0.1 -uroot test_db < schema.sql
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: root
+          DB_PASSWORD: ""
+          DB_NAME: test_db
+
       - name: Run Integration Tests
         run: |
           pytest tests/integration
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: root
+          DB_PASSWORD: ""
+          DB_NAME: test_db
 
   end-to-end-tests:
     name: End-to-End Tests
     runs-on: ubuntu-latest
 
+    services:
+      mysql_db:
+        image: mysql:8.0
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+          MYSQL_DATABASE: test_db
+        ports:
+          - "3306:3306"
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v3
 
@@ -69,6 +122,30 @@ jobs:
           pip install -r requirements.txt
           pip install pytest
 
+      - name: Wait for DB service
+        run: |
+          for i in $(seq 1 30); do
+            mysql -h 127.0.0.1 -uroot -e "select 1" > /dev/null 2>&1 && break
+            sleep 5
+          done
+
+      - name: Run Database Migrations
+        run: |
+          mysql -h 127.0.0.1 -uroot -e "CREATE DATABASE IF NOT EXISTS test_db;" 
+          mysql -h 127.0.0.1 -uroot test_db < schema.sql
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: root
+          DB_PASSWORD: ""
+          DB_NAME: test_db
+
       - name: Run End-to-End Test
         run: |
           pytest tests/test_end_to_end.py
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: root
+          DB_PASSWORD: ""
+          DB_NAME: test_db
