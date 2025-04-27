@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from app.database import get_connection
 from app.security.password_handler import hash_password, verify_password
 from app.security.jwt_handler import create_access_token
@@ -11,12 +11,12 @@ router = APIRouter()
 # Modèles Pydantic pour validation
 class UserCreate(BaseModel):
     username: str
-    email: EmailStr
+    email: str
     password: str
 
 
 class UserLogin(BaseModel):
-    email: EmailStr
+    username: str
     password: str
 
 
@@ -26,7 +26,7 @@ class AuthResponse(BaseModel):
 
 
 @router.post(
-    "/register",
+    "/api/auth/register",
     summary="Inscription d'un nouvel utilisateur",
     response_model=AuthResponse,
     responses={
@@ -36,19 +36,16 @@ class AuthResponse(BaseModel):
     }
 )
 async def register_user(user: UserCreate):
-    """Inscrit un nouvel utilisateur et génère un token immédiatement."""
     connection = get_connection()
     if not connection:
         raise HTTPException(status_code=500, detail="Erreur de connexion à la base de données.")
 
     with closing(connection.cursor(dictionary=True)) as cursor:
         try:
-            # Vérifier si l'email est déjà utilisé
-            cursor.execute("SELECT id FROM users WHERE email = %s", (user.email,))
+            cursor.execute("SELECT id FROM users WHERE username = %s", (user.username,))
             if cursor.fetchone():
                 raise HTTPException(status_code=400, detail="Email déjà utilisé.")
 
-            # Hasher le mot de passe et insérer l'utilisateur
             hashed_password = hash_password(user.password)
             cursor.execute(
                 "INSERT INTO users (username, email, password_hash) VALUES (%s, %s, %s)",
@@ -58,7 +55,6 @@ async def register_user(user: UserCreate):
             user_id = cursor.lastrowid
             connection.commit()
 
-            # Générer un token JWT
             token = create_access_token({"user_id": user_id})
             return {"access_token": token, "token_type": "bearer"}
 
@@ -71,7 +67,7 @@ async def register_user(user: UserCreate):
 
 
 @router.post(
-    "/login",
+    "/api/auth/login",
     summary="Connexion utilisateur",
     response_model=AuthResponse,
     responses={
@@ -81,21 +77,18 @@ async def register_user(user: UserCreate):
     }
 )
 async def login_user(user: UserLogin):
-    """Connecte un utilisateur et retourne un token JWT."""
     connection = get_connection()
     if not connection:
         raise HTTPException(status_code=500, detail="Erreur de connexion à la base de données.")
 
     with closing(connection.cursor(dictionary=True)) as cursor:
         try:
-            # Récupérer l'utilisateur en base
-            cursor.execute("SELECT id, password_hash FROM users WHERE email = %s", (user.email,))
+            cursor.execute("SELECT id, password_hash FROM users WHERE username = %s", (user.username,))
             db_user = cursor.fetchone()
 
             if not db_user or not verify_password(user.password, db_user["password_hash"]):
                 raise HTTPException(status_code=401, detail="Identifiants invalides.")
 
-            # Générer un token JWT
             token = create_access_token({"user_id": db_user["id"]})
             return {"access_token": token, "token_type": "bearer"}
 
