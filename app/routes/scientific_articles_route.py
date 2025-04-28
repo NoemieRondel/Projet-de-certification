@@ -5,6 +5,7 @@ from app.security.jwt_handler import jwt_required
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
+import logging
 
 router = APIRouter()
 
@@ -105,13 +106,17 @@ async def get_all_scientific_articles(
             # Retourner la liste des articles en réponse
             return articles
 
+    except HTTPException:
+        raise
     except Exception as e:
-        # LOG : Erreur SQL
-        print(f"Erreur SQL : {str(e)}")
+        logging.error(f"Erreur lors de l'exécution de la requête : {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur interne : {str(e)}")
 
     finally:
-        connection.close()
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
 
 
 # Route pour récupérer les 5 articles scientifiques les plus récents
@@ -163,10 +168,14 @@ async def get_latest_scientific_articles(
             # Retourner la liste des articles en réponse
             return articles
 
+    except HTTPException:
+        raise
     except Exception as e:
-        # LOG : Erreur SQL
-        print(f"Erreur SQL : {str(e)}")
+        logging.error(f"Erreur lors de l'exécution de la requête : {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur interne : {str(e)}")
 
     finally:
-        connection.close()
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()

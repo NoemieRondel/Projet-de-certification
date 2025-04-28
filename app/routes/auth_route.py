@@ -69,6 +69,10 @@ async def register_user(user: UserCreate):
             connection.rollback()
             raise HTTPException(status_code=500, detail=f"Erreur interne : {str(e)}")
 
+        finally:
+            if connection:
+                connection.close()
+
 
 @router.post(
     "/login",
@@ -104,3 +108,7 @@ async def login_user(user: UserLogin):
 
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Erreur interne : {str(e)}")
+
+        finally:
+            if connection:
+                connection.close()

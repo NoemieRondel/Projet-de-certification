@@ -128,12 +128,12 @@ async def get_latest_articles(user=Depends(jwt_required)):
         WITH ranked_articles AS (
             SELECT
                 id, title, source, publication_date, keywords, summary, link,
-                RANK() OVER (PARTITION BY source ORDER BY publication_date DESC) AS rank
+                ROW_NUMBER() OVER (PARTITION BY source ORDER BY publication_date DESC) AS `rank`
             FROM articles
         )
         SELECT id, title, source, publication_date, keywords, summary, link
         FROM ranked_articles
-        WHERE rank = 1
+        WHERE `rank` = 1
         ORDER BY publication_date DESC;
     """
 
@@ -165,4 +165,7 @@ async def get_latest_articles(user=Depends(jwt_required)):
         raise HTTPException(status_code=500, detail=f"Erreur interne : {str(e)}")
 
     finally:
-        connection.close()
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()

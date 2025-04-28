@@ -101,9 +101,11 @@ async def get_all_videos(
 
             return videos
 
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Erreur SQL : {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur interne : {e}")
+        logging.error(f"Erreur lors de l'exécution de la requête : {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erreur interne : {str(e)}")
 
     finally:
         connection.close()
@@ -125,8 +127,10 @@ async def get_video_sources(user=Depends(jwt_required)):
 
             return {"channel_name": channel_names}
 
+    except HTTPException:
+        raise
     except Exception as e:
-        logging.error(f"Erreur lors de la récupération des chaînes des vidéos : {str(e)}")
+        logging.error(f"Erreur lors de l'exécution de la requête : {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur interne : {str(e)}")
 
     finally:
