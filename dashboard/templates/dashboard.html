@@ -21,7 +21,7 @@
             <div class="card text-bg-primary">
                 <div class="card-body">
                     <h5 class="card-title">📄 Articles</h5>
-                    <p class="card-text fs-4">{{ dashboard.articles_count }}</p>
+                    <p class="card-text fs-4">{{ dashboard.metrics.articles_count }}</p>
                 </div>
             </div>
         </div>
@@ -29,7 +29,7 @@
             <div class="card text-bg-success">
                 <div class="card-body">
                     <h5 class="card-title">🎥 Vidéos</h5>
-                    <p class="card-text fs-4">{{ dashboard.videos_count }}</p>
+                    <p class="card-text fs-4">{{ dashboard.metrics.videos_count }}</p>
                 </div>
             </div>
         </div>
@@ -37,7 +37,7 @@
             <div class="card text-bg-warning">
                 <div class="card-body">
                     <h5 class="card-title">📚 Articles scientifiques</h5>
-                    <p class="card-text fs-4">{{ dashboard.scientific_articles_count }}</p>
+                    <p class="card-text fs-4">{{ dashboard.metrics.scientific_articles_count }}</p>
                 </div>
             </div>
         </div>
@@ -81,65 +81,5 @@
             <li class="list-group-item text-muted">Aucune vidéo récente</li>
         {% endfor %}
     </ul>
-
-    <!-- Section des tendances des mots-clés -->
-    <h2>📈 Tendances des mots-clés</h2>
-    {% if dashboard.trending_keywords %}
-        <div class="mt-4">
-            <canvas id="keywordChart" style="height: 400px;"></canvas>
-        </div>
-    {% else %}
-        <p class="text-muted">Aucune tendance détectée récemment.</p>
-    {% endif %}
-</div>
-
-<!-- Script pour afficher le graphique des tendances -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-    document.addEventListener("DOMContentLoaded", function() {
-        var ctx = document.getElementById("keywordChart").getContext("2d");
-        var trendingData = {{ dashboard.trending_keywords | tojson }};
-
-        if (trendingData.length > 0) {
-            var labels = [];
-            var counts = [];
-
-            trendingData.forEach(entry => {
-                entry.keywords.forEach(keyword => {
-                    let index = labels.indexOf(keyword.keyword);
-                    if (index === -1) {
-                        labels.push(keyword.keyword);
-                        counts.push(keyword.count);
-                    } else {
-                        counts[index] += keyword.count;
-                    }
-                });
-            });
-
-            new Chart(ctx, {
-                type: "bar",
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: "Occurrences",
-                        data: counts,
-                        backgroundColor: "rgba(75, 192, 192, 0.6)",
-                        borderColor: "rgba(75, 192, 192, 1)",
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: { display: false }
-                    },
-                    scales: {
-                        y: { beginAtZero: true }
-                    }
-                }
-            });
-        }
-    });
-</script>
 
 {% endblock %}
