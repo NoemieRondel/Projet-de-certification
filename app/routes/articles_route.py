@@ -66,8 +66,8 @@ async def get_all_articles(
         params.append(end_date)
 
     if source:
-        query += " AND source = %s"
-        params.append(source)
+        query += " AND source LIKE %s"
+        params.append(f"%{source}%")
 
     if keywords:
         keyword_list = [f"%{kw.strip()}%" for kw in keywords.split(',')]

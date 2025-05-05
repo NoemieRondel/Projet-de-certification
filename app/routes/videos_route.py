@@ -69,8 +69,8 @@ async def get_all_videos(
         params.append(end_date)
 
     if source:
-        query += " AND source = %s"
-        params.append(source)
+        query += " AND source LIKE %s"
+        params.append(f"%{source}%")
 
     # Ajout du tri par date (du plus récent au plus ancien)
     query += " ORDER BY publication_date DESC"
